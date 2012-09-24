@@ -149,7 +149,7 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		connectionState = new JLabel(ConnectionState.Disconnected.name());
 		footer.add(connectionState, data);
 
-		JLabel version = new JLabel("Version: 0.5.5");
+		JLabel version = new JLabel("Version: 0.5.6");
 		version.setAlignmentX(JLabel.RIGHT_ALIGNMENT);
 		footer.add(version);
 
