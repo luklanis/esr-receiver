@@ -3,12 +3,15 @@ package ch.luklanis.esreceiver;
 import java.awt.AWTException;
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Container;
-import java.awt.Dimension;
 import java.awt.EventQueue;
-import java.awt.Label;
-import java.awt.LayoutManager;
 import java.awt.Robot;
+import java.awt.Toolkit;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.ClipboardOwner;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
@@ -24,6 +27,7 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.JTextArea;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 
@@ -36,7 +40,7 @@ import ch.luklanis.esreceiver.datareceived.OnDataReceivedListener;
 import com.crs.toolkit.layout.SWTGridData;
 import com.crs.toolkit.layout.SWTGridLayout;
 
-public class AppFrame extends JFrame {
+public class AppFrame extends JFrame implements ClipboardOwner {
 
 	/**
 	 * 
@@ -46,26 +50,27 @@ public class AppFrame extends JFrame {
 	private JLabel connectionState;
 	private TcpReceive tcpReceive;
 	private JTextField ipAddress;
-	private JCheckBox addCRCheckBox;
+	private JCheckBox autoPasteCheckBox;
 	private Properties properties;
+	private JTextArea clipboardData;
 	private static final String propertiesFile = System.getProperty("user.dir") + "/ESRReceiver.properties";
 
 	public AppFrame() {
 		super("ESR Receiver");
 
 		setDefaultCloseOperation(EXIT_ON_CLOSE);
-		setSize(280, 140);
+		setSize(280, 200);
 
 		FileInputStream inputStream = null;
 		String host = "";
-		boolean addCR = false;
+		boolean autoPaste = false;
 		properties = new Properties();
-		
+
 		try {
 			inputStream = new FileInputStream(propertiesFile);
 			properties.load(inputStream);        
 			host = properties.getProperty("host");
-			addCR = properties.getProperty("addCR").equalsIgnoreCase("true");
+			autoPaste = properties.getProperty("autoPaste").equalsIgnoreCase("true");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -91,17 +96,17 @@ public class AppFrame extends JFrame {
 		data.horizontalAlignment = SWTGridData.FILL;
 		body.add(ipAddress, data);
 
-		addCRCheckBox = new JCheckBox("Add ENTER-Key");
-		addCRCheckBox.setSelected(addCR);
-		addCRCheckBox.addActionListener(new ActionListener() {
+		autoPasteCheckBox = new JCheckBox("Auto paste");
+		autoPasteCheckBox.setSelected(autoPaste);
+		autoPasteCheckBox.addActionListener(new ActionListener() {
 
 			@Override
 			public void actionPerformed(ActionEvent arg0) {
-				saveProperty("addCR", String.valueOf(addCRCheckBox.isSelected()));
+				saveProperty("autoPaste", String.valueOf(autoPasteCheckBox.isSelected()));
 			}
 		});
 
-		body.add(addCRCheckBox);
+		body.add(autoPasteCheckBox);
 
 		saveButton = new JButton("Connect");
 		saveButton.addActionListener(new ActionListener() {
@@ -122,15 +127,29 @@ public class AppFrame extends JFrame {
 		getRootPane().setDefaultButton(saveButton);
 		body.add(saveButton);
 
+		JLabel clipboard = new JLabel("Current coderow on the clipboard:");
+		data = new SWTGridData();
+		data.horizontalSpan = 2;
+		body.add(clipboard, data);
+
+		clipboardData = new JTextArea("");
+		clipboardData.setLineWrap(true);
+		data = new SWTGridData();
+		data.horizontalSpan = 2;
+		data.grabExcessHorizontalSpace = true;
+		data.horizontalAlignment = SWTGridData.FILL;
+		body.add(clipboardData, data);
 
 		JPanel footer = new JPanel(new SWTGridLayout(2, false));
 		getContentPane().add(footer, BorderLayout.SOUTH);
 		footer.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Color.BLACK));
-
+		
+		data = new SWTGridData();
+		data.grabExcessHorizontalSpace = true;
 		connectionState = new JLabel(ConnectionState.Disconnected.name());
 		footer.add(connectionState, data);
 
-		JLabel version = new JLabel("Version: 0.5.1");
+		JLabel version = new JLabel("Version: 0.5.5");
 		version.setAlignmentX(JLabel.RIGHT_ALIGNMENT);
 		footer.add(version);
 
@@ -142,53 +161,99 @@ public class AppFrame extends JFrame {
 				connectionState.setText(event.getConnectionState().name());
 			}
 		});
+		
 		this.tcpReceive.setOnDataReceivedListener(new OnDataReceivedListener() {
 
 			@Override
 			public void dataReceived(DataReceivedEvent event) {
 				String codeRow = event.getData();
 
-				Robot robot;
-				try {
-					robot = new Robot();
-				} catch (AWTException e1) {
-					e1.printStackTrace();
-					return;
-				}
-				robot.setAutoDelay(5);
+				setClipboardContents(codeRow);
 
-				for (int i = 0; i < codeRow.length(); i++) {
-					char keycode = codeRow.charAt(i);
-					if (((keycode - KeyEvent.VK_0) >= 0) 
-							&& ((keycode - KeyEvent.VK_0) <= 9)
-							|| (keycode == KeyEvent.VK_SPACE)) {
-						robot.keyPress(keycode);
-						robot.keyRelease(keycode);
-					} else {
-						if (keycode == '>') {
-							robot.keyPress(KeyEvent.VK_SHIFT);
-							robot.keyPress(KeyEvent.VK_LESS);
-							robot.keyRelease(KeyEvent.VK_SHIFT);
-							continue;
-						}
-						if (keycode == '+') {
-							robot.keyPress(KeyEvent.VK_SHIFT); 
-							robot.keyPress(KeyEvent.VK_1); 
-							robot.keyRelease(KeyEvent.VK_SHIFT);
-							continue;
-						}
-						
-						System.out.println(String.format("Received: %d", (int)keycode));
+				if (autoPasteCheckBox.isSelected()) {
+					Robot robot;
+					try {
+						robot = new Robot();
+					} catch (AWTException e1) {
+						e1.printStackTrace();
+						return;
 					}
-				}
-
-				if (addCRCheckBox.isSelected()) {
+					robot.setAutoDelay(5);
+					
+					robot.keyPress(KeyEvent.VK_CONTROL);
+					robot.keyPress(KeyEvent.VK_V);
+					robot.keyRelease(KeyEvent.VK_CONTROL);
 					robot.keyPress(KeyEvent.VK_ENTER);
 					robot.keyRelease(KeyEvent.VK_ENTER);
 				}
+				
+				clipboardData.selectAll();
+				clipboardData.paste();
 			}
 		});
 	}
+
+	public static void main(String... args) {
+		EventQueue.invokeLater(new Runnable() {
+			public void run() {
+				try {
+					UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+				} catch (ClassNotFoundException e) {
+				} catch (InstantiationException e) {
+				} catch (IllegalAccessException e) {
+				} catch (UnsupportedLookAndFeelException e) {
+				}
+
+				new AppFrame().setVisible(true);
+			}
+		});
+	}
+
+	@Override
+	public void lostOwnership(Clipboard arg0, Transferable arg1) {
+	}
+
+	/**
+	 * Place a String on the clipboard, and make this class the
+	 * owner of the Clipboard's contents.
+	 */
+	public void setClipboardContents(String aString){
+		StringSelection stringSelection = new StringSelection(aString);
+		Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+		clipboard.setContents( stringSelection, this );
+	}
+
+	  /**
+	  * Get the String residing on the clipboard.
+	  *
+	  * @return any text found on the Clipboard; if none found, return an
+	  * empty String.
+	  */
+	  public String getClipboardContents() {
+	    String result = "";
+	    Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+	    //odd: the Object param of getContents is not currently used
+	    Transferable contents = clipboard.getContents(null);
+	    boolean hasTransferableText =
+	      (contents != null) &&
+	      contents.isDataFlavorSupported(DataFlavor.stringFlavor)
+	    ;
+	    if ( hasTransferableText ) {
+	      try {
+	        result = (String)contents.getTransferData(DataFlavor.stringFlavor);
+	      }
+	      catch (UnsupportedFlavorException ex){
+	        //highly unlikely since we are using a standard DataFlavor
+	        System.out.println(ex);
+	        ex.printStackTrace();
+	      }
+	      catch (IOException ex) {
+	        System.out.println(ex);
+	        ex.printStackTrace();
+	      }
+	    }
+	    return result;
+	  }
 
 	protected void saveProperty(String property, String value) {
 		FileOutputStream outputStream = null;
@@ -207,21 +272,5 @@ public class AppFrame extends JFrame {
 			} catch (IOException e) {
 			}
 		}
-	}
-
-	public static void main(String... args) {
-		EventQueue.invokeLater(new Runnable() {
-			public void run() {
-				try {
-					UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-				} catch (ClassNotFoundException e) {
-				} catch (InstantiationException e) {
-				} catch (IllegalAccessException e) {
-				} catch (UnsupportedLookAndFeelException e) {
-				}
-
-				new AppFrame().setVisible(true);
-			}
-		});
 	}
 }

@@ -4,6 +4,7 @@
 .orig
 *.swp
 *.suo
+*.jar
 ant.properties
 local.properties
 orig-build.xml

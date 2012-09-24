@@ -76,12 +76,13 @@ public class TcpReceive  implements Runnable{
 			// Try to open a socket on a given host and port
 			// Try to open input and output streams
 			try {
+				changeConnectionState(ConnectionState.Connecting);
 				clientSocket = new Socket(host, DEFAULT_PORT);
+				clientSocket.setSoTimeout(5000);
 				is = new DataInputStream(clientSocket.getInputStream());
 				changeConnectionState(ConnectionState.Connected);
 			} catch (Exception e) {
 				System.err.println("Don't know about host " + host);
-				changeConnectionState(ConnectionState.Connecting);
 				
 				try {
 
