@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.Properties;
 
 import javax.swing.BorderFactory;
+import javax.swing.Box;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JFrame;
@@ -46,24 +47,26 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 	 * 
 	 */
 	private static final long serialVersionUID = -1668274381664960966L;
-	private JButton saveButton;
+	private JButton connectButton;
 	private JLabel connectionState;
 	private TcpReceive tcpReceive;
 	private JTextField ipAddress;
 	private JCheckBox autoPasteCheckBox;
 	private Properties properties;
 	private JTextArea clipboardData;
+	private JCheckBox removeSpaceCheckBox;
 	private static final String propertiesFile = System.getProperty("user.dir") + "/ESRReceiver.properties";
 
 	public AppFrame() {
 		super("ESR Receiver");
 
 		setDefaultCloseOperation(EXIT_ON_CLOSE);
-		setSize(280, 200);
+		setSize(280, 240);
 
 		FileInputStream inputStream = null;
 		String host = "";
 		boolean autoPaste = false;
+		boolean removeSpace = false;
 		properties = new Properties();
 
 		try {
@@ -71,6 +74,7 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 			properties.load(inputStream);        
 			host = properties.getProperty("host");
 			autoPaste = properties.getProperty("autoPaste").equalsIgnoreCase("true");
+			removeSpace = properties.getProperty("removeSpace").equalsIgnoreCase("true");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -108,24 +112,49 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 
 		body.add(autoPasteCheckBox);
 
-		saveButton = new JButton("Connect");
-		saveButton.addActionListener(new ActionListener() {
+		removeSpaceCheckBox = new JCheckBox("Remove space");
+		removeSpaceCheckBox.setSelected(removeSpace);
+		removeSpaceCheckBox.addActionListener(new ActionListener() {
 
 			@Override
 			public void actionPerformed(ActionEvent arg0) {
-				if (saveButton.getText().equalsIgnoreCase("connect")){
+				saveProperty("removeSpace", String.valueOf(removeSpaceCheckBox.isSelected()));
+			}
+		});
+
+		
+		data = new SWTGridData();
+		data.grabExcessHorizontalSpace = true;
+		data.horizontalAlignment = SWTGridData.RIGHT;
+		body.add(removeSpaceCheckBox, data);
+
+		connectButton = new JButton("Connect");
+		connectButton.addActionListener(new ActionListener() {
+
+			@Override
+			public void actionPerformed(ActionEvent arg0) {
+				if (connectButton.getText().equalsIgnoreCase("connect")){
 					saveProperty("host", ipAddress.getText());
-					saveButton.setText("Disconnect");
+					connectButton.setText("Disconnect");
 					connectionState.setText(ConnectionState.Connecting.name());
 					tcpReceive.connect(ipAddress.getText());
 				} else {
-					saveButton.setText("Connect");
+					connectButton.setText("Connect");
 					tcpReceive.close();
 				}
 			}
 		});
-		getRootPane().setDefaultButton(saveButton);
-		body.add(saveButton);
+		
+		getRootPane().setDefaultButton(connectButton);
+		
+		data = new SWTGridData();
+		data.horizontalSpan = 2;
+		data.grabExcessHorizontalSpace = true;
+		data.horizontalAlignment = SWTGridData.RIGHT;
+		
+		body.add(connectButton, data);
+		
+		body.add(Box.createVerticalStrut(5)); 
 
 		JLabel clipboard = new JLabel("Current coderow on the clipboard:");
 		data = new SWTGridData();
@@ -167,6 +196,10 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 			@Override
 			public void dataReceived(DataReceivedEvent event) {
 				String codeRow = event.getData();
+				
+				if (removeSpaceCheckBox.isSelected()) {
+					codeRow = codeRow.replace(" ", "");
+				}
 
 				setClipboardContents(codeRow);
 

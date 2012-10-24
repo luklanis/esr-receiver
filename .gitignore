@@ -7,6 +7,7 @@
 *.jar
 ant.properties
 local.properties
+ESRReceiver.properties
 orig-build.xml
 android/proguard
 android/res/drawable/torch_button.xml
