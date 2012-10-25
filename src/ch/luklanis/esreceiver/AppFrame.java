@@ -47,6 +47,9 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 	 * 
 	 */
 	private static final long serialVersionUID = -1668274381664960966L;
+	private static final String CURRENT_VERSION = "0.5.7";
+	private static final String propertiesFile = System.getProperty("user.dir") + "/ESRReceiver.properties";
+	
 	private JButton connectButton;
 	private JLabel connectionState;
 	private TcpReceive tcpReceive;
@@ -55,7 +58,6 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 	private Properties properties;
 	private JTextArea clipboardData;
 	private JCheckBox removeSpaceCheckBox;
-	private static final String propertiesFile = System.getProperty("user.dir") + "/ESRReceiver.properties";
 
 	public AppFrame() {
 		super("ESR Receiver");
@@ -178,7 +180,7 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		connectionState = new JLabel(ConnectionState.Disconnected.name());
 		footer.add(connectionState, data);
 
-		JLabel version = new JLabel("Version: 0.5.6");
+		JLabel version = new JLabel("Version: " + CURRENT_VERSION );
 		version.setAlignmentX(JLabel.RIGHT_ALIGNMENT);
 		footer.add(version);
 
