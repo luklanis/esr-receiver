@@ -4,7 +4,6 @@
 .orig
 *.swp
 *.suo
-*.jar
 ant.properties
 local.properties
 ESRReceiver.properties

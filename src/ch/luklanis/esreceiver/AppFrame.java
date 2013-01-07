@@ -214,12 +214,23 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 						return;
 					}
 					robot.setAutoDelay(5);
-					
-					robot.keyPress(KeyEvent.VK_CONTROL);
-					robot.keyPress(KeyEvent.VK_V);
-					robot.keyRelease(KeyEvent.VK_CONTROL);
-					robot.keyPress(KeyEvent.VK_ENTER);
-					robot.keyRelease(KeyEvent.VK_ENTER);
+
+					if (OSValidator.isWindows() || OSValidator.isUnix()) {
+				        // Ctrl-V on Win and Linux
+						robot.keyPress(KeyEvent.VK_CONTROL);
+						robot.keyPress(KeyEvent.VK_V);
+						robot.keyRelease(KeyEvent.VK_CONTROL);
+						robot.keyPress(KeyEvent.VK_ENTER);
+						robot.keyRelease(KeyEvent.VK_ENTER);
+					} else if (OSValidator.isMac()) {
+						// ⌘-V on Mac
+						robot.keyPress(KeyEvent.VK_META);
+						robot.keyPress(KeyEvent.VK_V);
+						robot.keyRelease(KeyEvent.VK_V);
+				        robot.keyRelease(KeyEvent.VK_META); 
+					} else {
+				        throw new AssertionError("Not tested on " + OSValidator.OS);
+					}
 				}
 				
 				clipboardData.selectAll();
