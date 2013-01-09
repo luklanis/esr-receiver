@@ -78,6 +78,9 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 			autoPaste = properties.getProperty("autoPaste").equalsIgnoreCase("true");
 			removeSpace = properties.getProperty("removeSpace").equalsIgnoreCase("true");
 		} catch (Exception e) {
+			saveProperty("host", host);
+			saveProperty("autoPaste", String.valueOf(autoPaste));
+			saveProperty("removeSpace", String.valueOf(removeSpace));
 			e.printStackTrace();
 		}
 		finally {
@@ -213,12 +216,12 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 						e1.printStackTrace();
 						return;
 					}
-					robot.setAutoDelay(5);
 
 					if (OSValidator.isWindows() || OSValidator.isUnix()) {
 				        // Ctrl-V on Win and Linux
 						robot.keyPress(KeyEvent.VK_CONTROL);
 						robot.keyPress(KeyEvent.VK_V);
+						robot.keyRelease(KeyEvent.VK_V);
 						robot.keyRelease(KeyEvent.VK_CONTROL);
 						robot.keyPress(KeyEvent.VK_ENTER);
 						robot.keyRelease(KeyEvent.VK_ENTER);
@@ -228,6 +231,8 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 						robot.keyPress(KeyEvent.VK_V);
 						robot.keyRelease(KeyEvent.VK_V);
 				        robot.keyRelease(KeyEvent.VK_META); 
+						robot.keyPress(KeyEvent.VK_ENTER);
+						robot.keyRelease(KeyEvent.VK_ENTER);
 					} else {
 				        throw new AssertionError("Not tested on " + OSValidator.OS);
 					}
