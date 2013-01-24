@@ -47,7 +47,7 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 	 * 
 	 */
 	private static final long serialVersionUID = -1668274381664960966L;
-	private static final String CURRENT_VERSION = "0.5.9";
+	private static final String CURRENT_VERSION = "0.6.0";
 	private static final String propertiesFile = System.getProperty("user.dir") + "/ESRReceiver.properties";
 	
 	private JButton connectButton;
@@ -231,8 +231,6 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 						robot.keyPress(KeyEvent.VK_V);
 						robot.keyRelease(KeyEvent.VK_V);
 				        robot.keyRelease(KeyEvent.VK_META); 
-						robot.keyPress(KeyEvent.VK_ENTER);
-						robot.keyRelease(KeyEvent.VK_ENTER);
 					} else {
 				        throw new AssertionError("Not tested on " + OSValidator.OS);
 					}
