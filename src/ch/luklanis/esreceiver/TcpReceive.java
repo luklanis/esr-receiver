@@ -27,6 +27,7 @@ public class TcpReceive  implements Runnable{
 	private static OnConnectionStateChangeListener onConnectionStateChangeListener;
 	private static OnDataReceivedListener onDataReceivedListener;
 	private static String host;
+	private static int port;
 	private static boolean close;
 	private Thread thread;
 
@@ -45,10 +46,11 @@ public class TcpReceive  implements Runnable{
 		changeConnectionState(ConnectionState.Disconnected);
 	}
 
-	public void connect(String host) {
+	public void connect(String host, int port) {
 
 		close = false;
 		TcpReceive.host = host;
+		TcpReceive.port = port;
 
 		this.thread = new Thread(new TcpReceive());
 		this.thread.start();
@@ -77,7 +79,7 @@ public class TcpReceive  implements Runnable{
 			// Try to open input and output streams
 			try {
 				changeConnectionState(ConnectionState.Connecting);
-				clientSocket = new Socket(host, DEFAULT_PORT);
+				clientSocket = new Socket(host, port);
 				clientSocket.setSoTimeout(5000);
 				is = new DataInputStream(clientSocket.getInputStream());
 				changeConnectionState(ConnectionState.Connected);

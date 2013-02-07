@@ -15,17 +15,27 @@ import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.awt.event.WindowListener;
+import java.awt.event.WindowStateListener;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Properties;
 
+import javax.jmdns.JmDNS;
+import javax.jmdns.ServiceEvent;
+import javax.jmdns.ServiceInfo;
+import javax.jmdns.ServiceListener;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.JTextArea;
@@ -40,6 +50,7 @@ import ch.luklanis.esreceiver.datareceived.OnDataReceivedListener;
 
 import com.crs.toolkit.layout.SWTGridData;
 import com.crs.toolkit.layout.SWTGridLayout;
+import com.sun.xml.internal.ws.util.StringUtils;
 
 public class AppFrame extends JFrame implements ClipboardOwner {
 
@@ -53,11 +64,32 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 	private JButton connectButton;
 	private JLabel connectionState;
 	private TcpReceive tcpReceive;
-	private JTextField ipAddress;
+	private JComboBox<ServiceDescription> devices;
 	private JCheckBox autoPasteCheckBox;
 	private Properties properties;
 	private JTextArea clipboardData;
 	private JCheckBox removeSpaceCheckBox;
+	
+	private JmDNS jmdns;
+	private final String SERVICE_TYPE = "_esr._tcp.local";
+	private ServiceListener serviceListener;
+	
+	private static class ServiceDescription {
+		public String name;
+		public String ipAddress;
+		public int port;
+		
+		public ServiceDescription(String name, String ipAddress, int port) {
+			this.name = name;
+			this.ipAddress = ipAddress;
+			this.port = port;
+		}
+		
+		@Override
+		public String toString() {
+			return name;
+		}
+	}
 
 	public AppFrame() {
 		super("ESR Receiver");
@@ -66,19 +98,16 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		setSize(280, 240);
 
 		FileInputStream inputStream = null;
-		String host = "";
 		boolean autoPaste = false;
 		boolean removeSpace = false;
 		properties = new Properties();
 
 		try {
 			inputStream = new FileInputStream(propertiesFile);
-			properties.load(inputStream);        
-			host = properties.getProperty("host");
+			properties.load(inputStream);
 			autoPaste = properties.getProperty("autoPaste").equalsIgnoreCase("true");
 			removeSpace = properties.getProperty("removeSpace").equalsIgnoreCase("true");
 		} catch (Exception e) {
-			saveProperty("host", host);
 			saveProperty("autoPaste", String.valueOf(autoPaste));
 			saveProperty("removeSpace", String.valueOf(removeSpace));
 			e.printStackTrace();
@@ -95,15 +124,15 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		JPanel body = new JPanel(new SWTGridLayout(2, false));
 		getContentPane().add(body);
 
-		body.add(new JLabel("IP Address:"));
+		body.add(new JLabel("Device:"));
 
-		ipAddress = new JTextField();
-		ipAddress.setText(host);
+		devices = new JComboBox<AppFrame.ServiceDescription>();
+		devices.addItem(new ServiceDescription("Please start the ESRScanner", "", 0));
 
 		SWTGridData data = new SWTGridData();
 		data.grabExcessHorizontalSpace = true;
 		data.horizontalAlignment = SWTGridData.FILL;
-		body.add(ipAddress, data);
+		body.add(devices, data);
 
 		autoPasteCheckBox = new JCheckBox("Auto paste");
 		autoPasteCheckBox.setSelected(autoPaste);
@@ -139,10 +168,15 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 			@Override
 			public void actionPerformed(ActionEvent arg0) {
 				if (connectButton.getText().equalsIgnoreCase("connect")){
-					saveProperty("host", ipAddress.getText());
+					ServiceDescription service = devices.getItemAt(devices.getSelectedIndex());
+					
+					if (service.ipAddress == null || service.ipAddress.isEmpty() || service.port == 0) {
+						return;
+					}
+					
 					connectButton.setText("Disconnect");
 					connectionState.setText(ConnectionState.Connecting.name());
-					tcpReceive.connect(ipAddress.getText());
+					tcpReceive.connect(service.ipAddress, service.port);
 				} else {
 					connectButton.setText("Connect");
 					tcpReceive.close();
@@ -238,6 +272,52 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 				
 				clipboardData.selectAll();
 				clipboardData.paste();
+			}
+		});
+		
+		try {
+			jmdns = JmDNS.create();
+		    jmdns.addServiceListener(SERVICE_TYPE, serviceListener = new ServiceListener() {
+		        public void serviceResolved(ServiceEvent event) {
+		        	ServiceInfo info = event.getInfo();
+		        	
+		        	String currentIpAddress = devices.getItemAt(devices.getSelectedIndex()).ipAddress;
+		        	if (currentIpAddress == null || currentIpAddress.isEmpty()) {
+		        		devices.removeAllItems();
+		        	}
+		        	
+		        	devices.addItem(new ServiceDescription(info.getName(), info.getHostAddresses()[0], info.getPort()));
+		        	
+//		            notifyUser("Service resolved: "
+//		                     + ev.getInfo().getQualifiedName()
+//		                     + " port:" + ev.getInfo().getPort());
+		        }
+		        public void serviceRemoved(ServiceEvent event) {
+//		            notifyUser("Service removed: " + ev.getName());
+		        }
+		        public void serviceAdded(ServiceEvent event) {
+		            // Required to force serviceResolved to be called again
+		            // (after the first search)
+		            jmdns.requestServiceInfo(event.getType(), event.getName(), 1);
+		        }
+		    });
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		addWindowListener(new WindowAdapter() {
+			@Override
+			public void windowClosing(WindowEvent arg0) {
+				if (jmdns != null) {
+					jmdns.removeServiceListener(SERVICE_TYPE, serviceListener);
+					try {
+						jmdns.close();
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				}
 			}
 		});
 	}
