@@ -14,11 +14,12 @@ import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
+import java.awt.event.ComponentListener;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
 import java.awt.event.KeyEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-import java.awt.event.WindowListener;
-import java.awt.event.WindowStateListener;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -35,9 +36,7 @@ import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
-import javax.swing.JList;
 import javax.swing.JPanel;
-import javax.swing.JTextField;
 import javax.swing.JTextArea;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
@@ -50,7 +49,6 @@ import ch.luklanis.esreceiver.datareceived.OnDataReceivedListener;
 
 import com.crs.toolkit.layout.SWTGridData;
 import com.crs.toolkit.layout.SWTGridLayout;
-import com.sun.xml.internal.ws.util.StringUtils;
 
 public class AppFrame extends JFrame implements ClipboardOwner {
 
@@ -58,9 +56,129 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 	 * 
 	 */
 	private static final long serialVersionUID = -1668274381664960966L;
-	private static final String CURRENT_VERSION = "0.6.0";
-	private static final String propertiesFile = System.getProperty("user.dir") + "/ESRReceiver.properties";
+	private static final String CURRENT_VERSION = "0.6.1";
+	private static final String propertiesFile = System.getProperty("user.dir")
+			+ "/ESRReceiver.properties";
+
+	private static final String SERVICE_TYPE = "_esr._tcp.local";
+
+	private JmDNS jmdns;
+	private final ServiceListener serviceListener  = new ServiceListener() {
+		public void serviceResolved(ServiceEvent event) {
+			ServiceInfo info = event.getInfo();
+			
+			if (devices.getItemAt(devices
+					.getSelectedIndex()).port == 0) {
+				devices.removeAllItems();
+			}
+
+			devices.addItem(new ServiceDescription(info.getNiceTextString(),
+					info.getHostAddresses()[0], info.getPort()));
+
+			devices.setSelectedIndex(devices.getItemCount() - 1);
+
+			connectButton.setEnabled(true);
+		}
+
+		public void serviceRemoved(ServiceEvent event) {
+			// notifyUser("Service removed: " +
+			// ev.getName());
+		}
+
+		public void serviceAdded(ServiceEvent event) {
+			jmdns.requestServiceInfo(event.getType(),
+					event.getName(), 1);
+		}
+	};
 	
+	private final ComponentListener componentHiddenListener = new ComponentAdapter() {
+		@Override
+		public void componentHidden(ComponentEvent event) {
+			if (jmdns != null) {
+				jmdns.removeServiceListener(SERVICE_TYPE,
+						serviceListener);
+				try {
+					jmdns.close();
+					jmdns = null;
+				} catch (IOException ex) {
+					// TODO Auto-generated catch block
+					ex.printStackTrace();
+				}
+			}
+			
+			((JFrame) (event.getComponent())).dispose();
+		}
+    };
+    
+	private final ActionListener connectButtonClicked = new ActionListener() {
+
+		@Override
+		public void actionPerformed(ActionEvent arg0) {
+			if (connectButton.getText().equalsIgnoreCase("connect")) {
+				ServiceDescription service = devices.getItemAt(devices
+						.getSelectedIndex());
+
+				if (service.ipAddress == null
+						|| service.ipAddress.isEmpty() || service.port == 0) {
+					return;
+				}
+
+				connectButton.setText("Disconnect");
+				connectionState.setText(ConnectionState.Connecting.name());
+				tcpReceive.connect(service.ipAddress, service.port);
+			} else {
+				connectButton.setText("Connect");
+				tcpReceive.close();
+			}
+		}
+	};
+	
+	private final OnDataReceivedListener dataReceivedListener = new OnDataReceivedListener() {
+
+		@Override
+		public void dataReceived(DataReceivedEvent event) {
+			String codeRow = event.getData();
+
+			if (removeSpaceCheckBox.isSelected()) {
+				codeRow = codeRow.replace(" ", "");
+			}
+
+			setClipboardContents(codeRow);
+
+			if (autoPasteCheckBox.isSelected()) {
+				Robot robot;
+				try {
+					robot = new Robot();
+				} catch (AWTException e1) {
+					e1.printStackTrace();
+					return;
+				}
+
+				if (OSValidator.isWindows() || OSValidator.isUnix()) {
+					// Ctrl-V on Win and Linux
+					robot.keyPress(KeyEvent.VK_CONTROL);
+					robot.keyPress(KeyEvent.VK_V);
+					robot.keyRelease(KeyEvent.VK_V);
+					robot.keyRelease(KeyEvent.VK_CONTROL);
+					robot.keyPress(KeyEvent.VK_ENTER);
+					robot.keyRelease(KeyEvent.VK_ENTER);
+				} else if (OSValidator.isMac()) {
+					// ⌘-V on Mac
+					robot.keyPress(KeyEvent.VK_META);
+					robot.keyPress(KeyEvent.VK_V);
+					robot.keyRelease(KeyEvent.VK_V);
+					robot.keyRelease(KeyEvent.VK_META);
+				} else {
+					throw new AssertionError("Not tested on "
+							+ OSValidator.OS);
+				}
+			}
+
+			clipboardData.selectAll();
+			clipboardData.paste();
+		}
+	};
+
 	private JButton connectButton;
 	private JLabel connectionState;
 	private TcpReceive tcpReceive;
@@ -69,22 +187,18 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 	private Properties properties;
 	private JTextArea clipboardData;
 	private JCheckBox removeSpaceCheckBox;
-	
-	private JmDNS jmdns;
-	private final String SERVICE_TYPE = "_esr._tcp.local";
-	private ServiceListener serviceListener;
-	
+
 	private static class ServiceDescription {
-		public String name;
-		public String ipAddress;
-		public int port;
-		
+		public final String name;
+		public final String ipAddress;
+		public final int port;
+
 		public ServiceDescription(String name, String ipAddress, int port) {
 			this.name = name;
 			this.ipAddress = ipAddress;
 			this.port = port;
 		}
-		
+
 		@Override
 		public String toString() {
 			return name;
@@ -96,23 +210,40 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 
 		setDefaultCloseOperation(EXIT_ON_CLOSE);
 		setSize(280, 240);
+        setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+		addComponentListener(componentHiddenListener);
 
 		FileInputStream inputStream = null;
 		boolean autoPaste = false;
 		boolean removeSpace = false;
+		ServiceDescription savedService = new ServiceDescription("Please start the ESRScanner...", "", 0);
 		properties = new Properties();
 
 		try {
 			inputStream = new FileInputStream(propertiesFile);
 			properties.load(inputStream);
-			autoPaste = properties.getProperty("autoPaste").equalsIgnoreCase("true");
-			removeSpace = properties.getProperty("removeSpace").equalsIgnoreCase("true");
+			autoPaste = properties.getProperty("autoPaste").equalsIgnoreCase(
+					"true");
+			removeSpace = properties.getProperty("removeSpace")
+					.equalsIgnoreCase("true");
+			
+			int port = Integer.getInteger(properties.getProperty("port"));
+			
+			if (port != 0) {
+				savedService = new ServiceDescription(
+						properties.getProperty("serviceName"), 
+						properties.getProperty("ipAddress"), 
+						port);
+			}
 		} catch (Exception e) {
 			saveProperty("autoPaste", String.valueOf(autoPaste));
 			saveProperty("removeSpace", String.valueOf(removeSpace));
+			saveProperty("serviceName", savedService.name);
+			saveProperty("ipAddress", savedService.ipAddress);
+			saveProperty("port", String.valueOf(savedService.port));
+			
 			e.printStackTrace();
-		}
-		finally {
+		} finally {
 			try {
 				if (inputStream != null) {
 					inputStream.close();
@@ -127,7 +258,23 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		body.add(new JLabel("Device:"));
 
 		devices = new JComboBox<AppFrame.ServiceDescription>();
-		devices.addItem(new ServiceDescription("Please start the ESRScanner", "", 0));
+		devices.addItem(savedService);
+		
+		devices.addItemListener(new ItemListener() {
+			
+			@Override
+			public void itemStateChanged(ItemEvent e) {
+				if (e.getStateChange() == ItemEvent.SELECTED) {
+					ServiceDescription selectedService = (ServiceDescription)e.getItem();
+					
+					if (selectedService.port != 0) {
+						saveProperty("serviceName", selectedService.name);
+						saveProperty("ipAddress", selectedService.ipAddress);
+						saveProperty("port", String.valueOf(selectedService.port));
+					}
+				}
+			}
+		});
 
 		SWTGridData data = new SWTGridData();
 		data.grabExcessHorizontalSpace = true;
@@ -140,7 +287,8 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 
 			@Override
 			public void actionPerformed(ActionEvent arg0) {
-				saveProperty("autoPaste", String.valueOf(autoPasteCheckBox.isSelected()));
+				saveProperty("autoPaste",
+						String.valueOf(autoPasteCheckBox.isSelected()));
 			}
 		});
 
@@ -152,48 +300,33 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 
 			@Override
 			public void actionPerformed(ActionEvent arg0) {
-				saveProperty("removeSpace", String.valueOf(removeSpaceCheckBox.isSelected()));
+				saveProperty("removeSpace",
+						String.valueOf(removeSpaceCheckBox.isSelected()));
 			}
 		});
 
-		
 		data = new SWTGridData();
 		data.grabExcessHorizontalSpace = true;
 		data.horizontalAlignment = SWTGridData.RIGHT;
 		body.add(removeSpaceCheckBox, data);
 
 		connectButton = new JButton("Connect");
-		connectButton.addActionListener(new ActionListener() {
+		connectButton.addActionListener(connectButtonClicked );
+		
+		if (savedService.port == 0) {
+			connectButton.setEnabled(false);
+		}
 
-			@Override
-			public void actionPerformed(ActionEvent arg0) {
-				if (connectButton.getText().equalsIgnoreCase("connect")){
-					ServiceDescription service = devices.getItemAt(devices.getSelectedIndex());
-					
-					if (service.ipAddress == null || service.ipAddress.isEmpty() || service.port == 0) {
-						return;
-					}
-					
-					connectButton.setText("Disconnect");
-					connectionState.setText(ConnectionState.Connecting.name());
-					tcpReceive.connect(service.ipAddress, service.port);
-				} else {
-					connectButton.setText("Connect");
-					tcpReceive.close();
-				}
-			}
-		});
-		
 		getRootPane().setDefaultButton(connectButton);
-		
+
 		data = new SWTGridData();
 		data.horizontalSpan = 2;
 		data.grabExcessHorizontalSpace = true;
 		data.horizontalAlignment = SWTGridData.RIGHT;
-		
+
 		body.add(connectButton, data);
-		
-		body.add(Box.createVerticalStrut(5)); 
+
+		body.add(Box.createVerticalStrut(5));
 
 		JLabel clipboard = new JLabel("Current coderow on the clipboard:");
 		data = new SWTGridData();
@@ -210,130 +343,56 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 
 		JPanel footer = new JPanel(new SWTGridLayout(2, false));
 		getContentPane().add(footer, BorderLayout.SOUTH);
-		footer.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Color.BLACK));
-		
+		footer.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0,
+				Color.BLACK));
+
 		data = new SWTGridData();
 		data.grabExcessHorizontalSpace = true;
 		connectionState = new JLabel(ConnectionState.Disconnected.name());
 		footer.add(connectionState, data);
 
-		JLabel version = new JLabel("Version: " + CURRENT_VERSION );
+		JLabel version = new JLabel("Version: " + CURRENT_VERSION);
 		version.setAlignmentX(JLabel.RIGHT_ALIGNMENT);
 		footer.add(version);
 
 		this.tcpReceive = new TcpReceive();
-		this.tcpReceive.setOnConnectionStateChangeListener(new OnConnectionStateChangeListener() {
+		this.tcpReceive
+				.setOnConnectionStateChangeListener(new OnConnectionStateChangeListener() {
 
-			@Override
-			public void connectionStateChanged(ConnectionStateChangedEvent event) {
-				connectionState.setText(event.getConnectionState().name());
-			}
-		});
-		
-		this.tcpReceive.setOnDataReceivedListener(new OnDataReceivedListener() {
-
-			@Override
-			public void dataReceived(DataReceivedEvent event) {
-				String codeRow = event.getData();
-				
-				if (removeSpaceCheckBox.isSelected()) {
-					codeRow = codeRow.replace(" ", "");
-				}
-
-				setClipboardContents(codeRow);
-
-				if (autoPasteCheckBox.isSelected()) {
-					Robot robot;
-					try {
-						robot = new Robot();
-					} catch (AWTException e1) {
-						e1.printStackTrace();
-						return;
+					@Override
+					public void connectionStateChanged(
+							ConnectionStateChangedEvent event) {
+						connectionState.setText(event.getConnectionState()
+								.name());
 					}
+				});
 
-					if (OSValidator.isWindows() || OSValidator.isUnix()) {
-				        // Ctrl-V on Win and Linux
-						robot.keyPress(KeyEvent.VK_CONTROL);
-						robot.keyPress(KeyEvent.VK_V);
-						robot.keyRelease(KeyEvent.VK_V);
-						robot.keyRelease(KeyEvent.VK_CONTROL);
-						robot.keyPress(KeyEvent.VK_ENTER);
-						robot.keyRelease(KeyEvent.VK_ENTER);
-					} else if (OSValidator.isMac()) {
-						// ⌘-V on Mac
-						robot.keyPress(KeyEvent.VK_META);
-						robot.keyPress(KeyEvent.VK_V);
-						robot.keyRelease(KeyEvent.VK_V);
-				        robot.keyRelease(KeyEvent.VK_META); 
-					} else {
-				        throw new AssertionError("Not tested on " + OSValidator.OS);
-					}
-				}
-				
-				clipboardData.selectAll();
-				clipboardData.paste();
-			}
-		});
-		
+		this.tcpReceive.setOnDataReceivedListener(dataReceivedListener );
+
 		try {
 			jmdns = JmDNS.create();
-		    jmdns.addServiceListener(SERVICE_TYPE, serviceListener = new ServiceListener() {
-		        public void serviceResolved(ServiceEvent event) {
-		        	ServiceInfo info = event.getInfo();
-		        	
-		        	String currentIpAddress = devices.getItemAt(devices.getSelectedIndex()).ipAddress;
-		        	if (currentIpAddress == null || currentIpAddress.isEmpty()) {
-		        		devices.removeAllItems();
-		        	}
-		        	
-		        	devices.addItem(new ServiceDescription(info.getName(), info.getHostAddresses()[0], info.getPort()));
-		        	
-//		            notifyUser("Service resolved: "
-//		                     + ev.getInfo().getQualifiedName()
-//		                     + " port:" + ev.getInfo().getPort());
-		        }
-		        public void serviceRemoved(ServiceEvent event) {
-//		            notifyUser("Service removed: " + ev.getName());
-		        }
-		        public void serviceAdded(ServiceEvent event) {
-		            // Required to force serviceResolved to be called again
-		            // (after the first search)
-		            jmdns.requestServiceInfo(event.getType(), event.getName(), 1);
-		        }
-		    });
+			jmdns.addServiceListener(SERVICE_TYPE,
+					serviceListener);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
-		addWindowListener(new WindowAdapter() {
-			@Override
-			public void windowClosing(WindowEvent arg0) {
-				if (jmdns != null) {
-					jmdns.removeServiceListener(SERVICE_TYPE, serviceListener);
-					try {
-						jmdns.close();
-					} catch (IOException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
-				}
-			}
-		});
 	}
 
 	public static void main(String... args) {
 		EventQueue.invokeLater(new Runnable() {
 			public void run() {
 				try {
-					UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+					UIManager.setLookAndFeel(UIManager
+							.getSystemLookAndFeelClassName());
 				} catch (ClassNotFoundException e) {
 				} catch (InstantiationException e) {
 				} catch (IllegalAccessException e) {
 				} catch (UnsupportedLookAndFeelException e) {
 				}
 
-				new AppFrame().setVisible(true);
+				AppFrame appFrame = new AppFrame();
+				appFrame.setVisible(true);
 			}
 		});
 	}
@@ -343,57 +402,53 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 	}
 
 	/**
-	 * Place a String on the clipboard, and make this class the
-	 * owner of the Clipboard's contents.
+	 * Place a String on the clipboard, and make this class the owner of the
+	 * Clipboard's contents.
 	 */
-	public void setClipboardContents(String aString){
+	public void setClipboardContents(String aString) {
 		StringSelection stringSelection = new StringSelection(aString);
 		Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-		clipboard.setContents( stringSelection, this );
+		clipboard.setContents(stringSelection, this);
 	}
 
-	  /**
-	  * Get the String residing on the clipboard.
-	  *
-	  * @return any text found on the Clipboard; if none found, return an
-	  * empty String.
-	  */
-	  public String getClipboardContents() {
-	    String result = "";
-	    Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-	    //odd: the Object param of getContents is not currently used
-	    Transferable contents = clipboard.getContents(null);
-	    boolean hasTransferableText =
-	      (contents != null) &&
-	      contents.isDataFlavorSupported(DataFlavor.stringFlavor)
-	    ;
-	    if ( hasTransferableText ) {
-	      try {
-	        result = (String)contents.getTransferData(DataFlavor.stringFlavor);
-	      }
-	      catch (UnsupportedFlavorException ex){
-	        //highly unlikely since we are using a standard DataFlavor
-	        System.out.println(ex);
-	        ex.printStackTrace();
-	      }
-	      catch (IOException ex) {
-	        System.out.println(ex);
-	        ex.printStackTrace();
-	      }
-	    }
-	    return result;
-	  }
+	/**
+	 * Get the String residing on the clipboard.
+	 * 
+	 * @return any text found on the Clipboard; if none found, return an empty
+	 *         String.
+	 */
+	public String getClipboardContents() {
+		String result = "";
+		Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+		// odd: the Object param of getContents is not currently used
+		Transferable contents = clipboard.getContents(null);
+		boolean hasTransferableText = (contents != null)
+				&& contents.isDataFlavorSupported(DataFlavor.stringFlavor);
+		if (hasTransferableText) {
+			try {
+				result = (String) contents
+						.getTransferData(DataFlavor.stringFlavor);
+			} catch (UnsupportedFlavorException ex) {
+				// highly unlikely since we are using a standard DataFlavor
+				System.out.println(ex);
+				ex.printStackTrace();
+			} catch (IOException ex) {
+				System.out.println(ex);
+				ex.printStackTrace();
+			}
+		}
+		return result;
+	}
 
 	protected void saveProperty(String property, String value) {
 		FileOutputStream outputStream = null;
-		try {  
-			properties.setProperty(property, value);        
-			outputStream = new FileOutputStream(propertiesFile);        
+		try {
+			properties.setProperty(property, value);
+			outputStream = new FileOutputStream(propertiesFile);
 			properties.store(outputStream, "update " + property);
 		} catch (Exception e) {
 			e.printStackTrace();
-		}
-		finally {
+		} finally {
 			try {
 				if (outputStream != null) {
 					outputStream.close();

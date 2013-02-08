@@ -23,7 +23,6 @@ public class TcpReceive  implements Runnable{
 	static BufferedReader inputLine = null;
 	static boolean closed = false;
 
-	private static final int DEFAULT_PORT = 8765;
 	private static OnConnectionStateChangeListener onConnectionStateChangeListener;
 	private static OnDataReceivedListener onDataReceivedListener;
 	private static String host;
@@ -118,7 +117,6 @@ public class TcpReceive  implements Runnable{
 				try {
 					is.close();
 				} catch (IOException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				} 
 
@@ -127,7 +125,6 @@ public class TcpReceive  implements Runnable{
 						clientSocket.close(); 
 					}
 				} catch (IOException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}  
 			}
