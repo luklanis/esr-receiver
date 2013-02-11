@@ -23,6 +23,7 @@ import java.awt.event.KeyEvent;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Properties;
 
 import javax.jmdns.JmDNS;
@@ -60,11 +61,13 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 	private static final String propertiesFile = System.getProperty("user.dir")
 			+ "/ESRReceiver.properties";
 
-	private static final String SERVICE_TYPE = "_esr._tcp.local";
+	private static final String SERVICE_TYPE = "_esr._tcp.local.";
 
 	private JmDNS jmdns;
 	private final ServiceListener serviceListener  = new ServiceListener() {
 		public void serviceResolved(ServiceEvent event) {
+	        System.out.println("RESOLVED: " + event.getName());
+	        
 			ServiceInfo info = event.getInfo();
 			
 			if (devices.getItemAt(devices
@@ -86,6 +89,8 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		}
 
 		public void serviceAdded(ServiceEvent event) {
+	        System.out.println("ADDED: " + event.getName());
+	        
 			jmdns.requestServiceInfo(event.getType(),
 					event.getName(), 1);
 		}
@@ -370,7 +375,7 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		this.tcpReceive.setOnDataReceivedListener(dataReceivedListener );
 
 		try {
-			jmdns = JmDNS.create();
+			jmdns = JmDNS.create(InetAddress.getLocalHost(), "ESRReceiver");
 			jmdns.addServiceListener(SERVICE_TYPE,
 					serviceListener);
 		} catch (IOException e) {
