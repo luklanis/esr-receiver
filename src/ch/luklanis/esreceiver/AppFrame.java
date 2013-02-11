@@ -39,6 +39,7 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextArea;
+import javax.swing.JTextField;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 
@@ -64,23 +65,24 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 	private static final String SERVICE_TYPE = "_esr._tcp.local.";
 
 	private JmDNS jmdns;
-	private final ServiceListener serviceListener  = new ServiceListener() {
+	private final ServiceListener serviceListener = new ServiceListener() {
 		public void serviceResolved(ServiceEvent event) {
-	        System.out.println("RESOLVED: " + event.getName());
-	        
+			System.out.println("RESOLVED: " + event.getName());
+
 			ServiceInfo info = event.getInfo();
-			
-			if (devices.getItemAt(devices
-					.getSelectedIndex()).port == 0) {
-				devices.removeAllItems();
+
+			try {
+				if (devices.getItemCount() == 1) {
+                    devices.removeAllItems();
+                    devices.addItem(new ServiceDescription("Choice one...", "", 0));
+				}
+
+				devices.addItem(new ServiceDescription(
+						info.getNiceTextString(), info.getHostAddresses()[0],
+						info.getPort()));
+			} catch (Exception ex) {
+				ex.printStackTrace();
 			}
-
-			devices.addItem(new ServiceDescription(info.getNiceTextString(),
-					info.getHostAddresses()[0], info.getPort()));
-
-			devices.setSelectedIndex(devices.getItemCount() - 1);
-
-			connectButton.setEnabled(true);
 		}
 
 		public void serviceRemoved(ServiceEvent event) {
@@ -89,19 +91,17 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		}
 
 		public void serviceAdded(ServiceEvent event) {
-	        System.out.println("ADDED: " + event.getName());
-	        
-			jmdns.requestServiceInfo(event.getType(),
-					event.getName(), 1);
+			System.out.println("ADDED: " + event.getName());
+
+			jmdns.requestServiceInfo(event.getType(), event.getName(), 1);
 		}
 	};
-	
+
 	private final ComponentListener componentHiddenListener = new ComponentAdapter() {
 		@Override
 		public void componentHidden(ComponentEvent event) {
 			if (jmdns != null) {
-				jmdns.removeServiceListener(SERVICE_TYPE,
-						serviceListener);
+				jmdns.removeServiceListener(SERVICE_TYPE, serviceListener);
 				try {
 					jmdns.close();
 					jmdns = null;
@@ -110,34 +110,37 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 					ex.printStackTrace();
 				}
 			}
-			
+
 			((JFrame) (event.getComponent())).dispose();
 		}
-    };
-    
+	};
+
 	private final ActionListener connectButtonClicked = new ActionListener() {
 
 		@Override
 		public void actionPerformed(ActionEvent arg0) {
 			if (connectButton.getText().equalsIgnoreCase("connect")) {
-				ServiceDescription service = devices.getItemAt(devices
-						.getSelectedIndex());
+				String[] inetAddress = hostInterface.getText().split(":");
+				String ipAddress = inetAddress[0];
+				int port = Integer.parseInt(inetAddress[1]);
 
-				if (service.ipAddress == null
-						|| service.ipAddress.isEmpty() || service.port == 0) {
+				if (ipAddress == null || ipAddress.isEmpty() || port == 0) {
 					return;
 				}
 
+				saveProperty("ipAddress", ipAddress);
+				saveProperty("port", String.valueOf(port));
+
 				connectButton.setText("Disconnect");
 				connectionState.setText(ConnectionState.Connecting.name());
-				tcpReceive.connect(service.ipAddress, service.port);
+				tcpReceive.connect(ipAddress, port);
 			} else {
 				connectButton.setText("Connect");
 				tcpReceive.close();
 			}
 		}
 	};
-	
+
 	private final OnDataReceivedListener dataReceivedListener = new OnDataReceivedListener() {
 
 		@Override
@@ -174,8 +177,7 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 					robot.keyRelease(KeyEvent.VK_V);
 					robot.keyRelease(KeyEvent.VK_META);
 				} else {
-					throw new AssertionError("Not tested on "
-							+ OSValidator.OS);
+					throw new AssertionError("Not tested on " + OSValidator.OS);
 				}
 			}
 
@@ -192,6 +194,7 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 	private Properties properties;
 	private JTextArea clipboardData;
 	private JCheckBox removeSpaceCheckBox;
+	private JTextField hostInterface;
 
 	private static class ServiceDescription {
 		public final String name;
@@ -215,14 +218,15 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 
 		setDefaultCloseOperation(EXIT_ON_CLOSE);
 		setSize(280, 240);
-        setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+		setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
 		addComponentListener(componentHiddenListener);
 
 		FileInputStream inputStream = null;
 		boolean autoPaste = false;
 		boolean removeSpace = false;
-		ServiceDescription savedService = new ServiceDescription("Please start the ESRScanner...", "", 0);
 		properties = new Properties();
+		int port = 0;
+		String ipAddress = "";
 
 		try {
 			inputStream = new FileInputStream(propertiesFile);
@@ -231,22 +235,15 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 					"true");
 			removeSpace = properties.getProperty("removeSpace")
 					.equalsIgnoreCase("true");
-			
-			int port = Integer.getInteger(properties.getProperty("port"));
-			
-			if (port != 0) {
-				savedService = new ServiceDescription(
-						properties.getProperty("serviceName"), 
-						properties.getProperty("ipAddress"), 
-						port);
-			}
+
+			port = Integer.parseInt(properties.getProperty("port"));
+			ipAddress = properties.getProperty("ipAddress");
 		} catch (Exception e) {
 			saveProperty("autoPaste", String.valueOf(autoPaste));
 			saveProperty("removeSpace", String.valueOf(removeSpace));
-			saveProperty("serviceName", savedService.name);
-			saveProperty("ipAddress", savedService.ipAddress);
-			saveProperty("port", String.valueOf(savedService.port));
-			
+			saveProperty("ipAddress", "");
+			saveProperty("port", String.valueOf(port));
+
 			e.printStackTrace();
 		} finally {
 			try {
@@ -263,19 +260,23 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		body.add(new JLabel("Device:"));
 
 		devices = new JComboBox<AppFrame.ServiceDescription>();
-		devices.addItem(savedService);
-		
+		devices.addItem(new ServiceDescription(
+				"Please start the ESRScanner...", "", 0));
+
 		devices.addItemListener(new ItemListener() {
-			
+
 			@Override
 			public void itemStateChanged(ItemEvent e) {
 				if (e.getStateChange() == ItemEvent.SELECTED) {
-					ServiceDescription selectedService = (ServiceDescription)e.getItem();
-					
+					ServiceDescription selectedService = (ServiceDescription) e
+							.getItem();
+
 					if (selectedService.port != 0) {
-						saveProperty("serviceName", selectedService.name);
-						saveProperty("ipAddress", selectedService.ipAddress);
-						saveProperty("port", String.valueOf(selectedService.port));
+						String connection = String
+								.format("%s:%d", selectedService.ipAddress,
+										selectedService.port);
+						hostInterface.setText(connection);
+						hostInterface.invalidate();
 					}
 				}
 			}
@@ -285,6 +286,19 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		data.grabExcessHorizontalSpace = true;
 		data.horizontalAlignment = SWTGridData.FILL;
 		body.add(devices, data);
+
+		body.add(new JLabel("Host (ip:port):"));
+
+		hostInterface = new JTextField();
+		
+		if (port != 0) {
+			hostInterface.setText(String.format("%s:%d", ipAddress, port));
+		}
+
+		data = new SWTGridData();
+		data.grabExcessHorizontalSpace = true;
+		data.horizontalAlignment = SWTGridData.FILL;
+		body.add(hostInterface, data);
 
 		autoPasteCheckBox = new JCheckBox("Auto paste");
 		autoPasteCheckBox.setSelected(autoPaste);
@@ -316,11 +330,7 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		body.add(removeSpaceCheckBox, data);
 
 		connectButton = new JButton("Connect");
-		connectButton.addActionListener(connectButtonClicked );
-		
-		if (savedService.port == 0) {
-			connectButton.setEnabled(false);
-		}
+		connectButton.addActionListener(connectButtonClicked);
 
 		getRootPane().setDefaultButton(connectButton);
 
@@ -372,12 +382,11 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 					}
 				});
 
-		this.tcpReceive.setOnDataReceivedListener(dataReceivedListener );
+		this.tcpReceive.setOnDataReceivedListener(dataReceivedListener);
 
 		try {
 			jmdns = JmDNS.create(InetAddress.getLocalHost(), "ESRReceiver");
-			jmdns.addServiceListener(SERVICE_TYPE,
-					serviceListener);
+			jmdns.addServiceListener(SERVICE_TYPE, serviceListener);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
