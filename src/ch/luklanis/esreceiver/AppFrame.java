@@ -70,16 +70,24 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 			System.out.println("RESOLVED: " + event.getName());
 
 			ServiceInfo info = event.getInfo();
+			
+			boolean autoConnect = ((ServiceDescription)devices.getSelectedItem()).port == 1;
 
 			try {
-				if (devices.getItemCount() == 1) {
+				for(device in devices) {
+					
+				}
+				if (devices.getItemCount() > 2) {
                     devices.removeAllItems();
                     devices.addItem(new ServiceDescription("Choice one...", "", 0));
+                    devices.addItem(new ServiceDescription("Auto connect", "", 1));
 				}
 
 				devices.addItem(new ServiceDescription(
 						info.getNiceTextString(), info.getHostAddresses()[0],
 						info.getPort()));
+				
+				devices.setSelectedIndex(devices.getItemCount() - 1);
 			} catch (Exception ex) {
 				ex.printStackTrace();
 			}
