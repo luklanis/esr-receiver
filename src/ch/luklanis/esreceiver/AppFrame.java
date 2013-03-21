@@ -72,22 +72,33 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 			ServiceInfo info = event.getInfo();
 			
 			boolean autoConnect = ((ServiceDescription)devices.getSelectedItem()).port == 1;
+			
+			ServiceDescription newDevice = new ServiceDescription(
+					info.getNiceTextString(), info.getHostAddresses()[0],
+					info.getPort());
 
 			try {
-				for(device in devices) {
-					
-				}
-				if (devices.getItemCount() > 2) {
-                    devices.removeAllItems();
-                    devices.addItem(new ServiceDescription("Choice one...", "", 0));
+				int itemCount = devices.getItemCount();
+				
+				if (itemCount == 1) {
+					devices.removeAllItems();
                     devices.addItem(new ServiceDescription("Auto connect", "", 1));
+				} else {
+					for (int i = 0; i < itemCount; i++) {
+						if (devices.getItemAt(i).ipAddress
+								.equals(newDevice.ipAddress)) {
+							devices.remove(i);
+							break;
+						}
+					}
 				}
 
-				devices.addItem(new ServiceDescription(
-						info.getNiceTextString(), info.getHostAddresses()[0],
-						info.getPort()));
-				
+				devices.addItem(newDevice);
 				devices.setSelectedIndex(devices.getItemCount() - 1);
+				
+				if (autoConnect) {
+					connectIfDisconnected();
+				}
 			} catch (Exception ex) {
 				ex.printStackTrace();
 			}
@@ -127,25 +138,7 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 
 		@Override
 		public void actionPerformed(ActionEvent arg0) {
-			if (connectButton.getText().equalsIgnoreCase("connect")) {
-				String[] inetAddress = hostInterface.getText().split(":");
-				String ipAddress = inetAddress[0];
-				int port = Integer.parseInt(inetAddress[1]);
-
-				if (ipAddress == null || ipAddress.isEmpty() || port == 0) {
-					return;
-				}
-
-				saveProperty("ipAddress", ipAddress);
-				saveProperty("port", String.valueOf(port));
-
-				connectButton.setText("Disconnect");
-				connectionState.setText(ConnectionState.Connecting.name());
-				tcpReceive.connect(ipAddress, port);
-			} else {
-				connectButton.setText("Connect");
-				tcpReceive.close();
-			}
+			connectOrDisconnect();
 		}
 	};
 
@@ -269,7 +262,7 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 
 		devices = new JComboBox<AppFrame.ServiceDescription>();
 		devices.addItem(new ServiceDescription(
-				"Please start the ESRScanner...", "", 0));
+				"Please start the ESR Scanner...", "", 1));
 
 		devices.addItemListener(new ItemListener() {
 
@@ -279,7 +272,7 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 					ServiceDescription selectedService = (ServiceDescription) e
 							.getItem();
 
-					if (selectedService.port != 0) {
+					if (selectedService.port > 1) {
 						String connection = String
 								.format("%s:%d", selectedService.ipAddress,
 										selectedService.port);
@@ -477,6 +470,43 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 				}
 			} catch (IOException e) {
 			}
+		}
+	}
+
+	private void connect() {
+		String[] inetAddress = hostInterface.getText().split(":");
+		String ipAddress = inetAddress[0];
+		int port = Integer.parseInt(inetAddress[1]);
+
+		if (ipAddress == null || ipAddress.isEmpty() || port <= 1) {
+			return;
+		}
+
+		saveProperty("ipAddress", ipAddress);
+		saveProperty("port", String.valueOf(port));
+
+		connectionState.setText(ConnectionState.Connecting.name());
+		tcpReceive.connect(ipAddress, port);
+	}
+
+	private void disconnect() {
+		tcpReceive.close();
+	}
+
+	private void connectIfDisconnected() {
+		if (connectButton.getText().equalsIgnoreCase("connect")) {
+			connect();
+			connectButton.setText("Disconnect");
+		}
+	}
+
+	private void connectOrDisconnect() {
+		if (connectButton.getText().equalsIgnoreCase("connect")) {
+			connect();
+			connectButton.setText("Disconnect");
+		} else {
+			connectButton.setText("Connect");
+			disconnect();
 		}
 	}
 }
