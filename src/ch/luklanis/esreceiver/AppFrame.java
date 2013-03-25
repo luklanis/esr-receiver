@@ -70,23 +70,31 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 			System.out.println("RESOLVED: " + event.getName());
 
 			ServiceInfo info = event.getInfo();
-			
-			boolean autoConnect = ((ServiceDescription)devices.getSelectedItem()).port == 1;
-			
+
+			boolean autoConnect = ((ServiceDescription) devices
+					.getSelectedItem()).port == 1;
+
 			ServiceDescription newDevice = new ServiceDescription(
 					info.getNiceTextString(), info.getHostAddresses()[0],
 					info.getPort());
 
 			try {
 				int itemCount = devices.getItemCount();
-				
+				boolean updateSelectedIndex = false;
+
 				if (itemCount == 1) {
 					devices.removeAllItems();
-                    devices.addItem(new ServiceDescription("Auto connect", "", 1));
+					devices.addItem(new ServiceDescription("Auto connect", "",
+							1));
 				} else {
 					for (int i = 0; i < itemCount; i++) {
 						if (devices.getItemAt(i).ipAddress
 								.equals(newDevice.ipAddress)) {
+
+							if (devices.getSelectedIndex() == i) {
+								updateSelectedIndex = true;
+							}
+
 							devices.remove(i);
 							break;
 						}
@@ -94,10 +102,14 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 				}
 
 				devices.addItem(newDevice);
-				devices.setSelectedIndex(devices.getItemCount() - 1);
-				
+
+				if (updateSelectedIndex) {
+					devices.setSelectedIndex(devices.getItemCount() - 1);
+				}
+
 				if (autoConnect) {
-					connectIfDisconnected();
+					devices.setSelectedIndex(devices.getItemCount() - 1);
+					connectIfNotConnected();
 				}
 			} catch (Exception ex) {
 				ex.printStackTrace();
@@ -273,6 +285,11 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 							.getItem();
 
 					if (selectedService.port > 1) {
+						if (tcpReceive.getCurrentState().compareTo(
+								ConnectionState.Disconnected) > 0) {
+							disconnect();
+						}
+
 						String connection = String
 								.format("%s:%d", selectedService.ipAddress,
 										selectedService.port);
@@ -291,10 +308,6 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		body.add(new JLabel("Host (ip:port):"));
 
 		hostInterface = new JTextField();
-		
-		if (port != 0) {
-			hostInterface.setText(String.format("%s:%d", ipAddress, port));
-		}
 
 		data = new SWTGridData();
 		data.grabExcessHorizontalSpace = true;
@@ -380,17 +393,34 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 							ConnectionStateChangedEvent event) {
 						connectionState.setText(event.getConnectionState()
 								.name());
+
+						if (event.getConnectionState().equals(
+								ConnectionState.Disconnected)) {
+							connectButton.setText("Connect");
+							hostInterface.setEnabled(true);
+						} else {
+							connectButton.setText("Disconnect");
+							hostInterface.setEnabled(false);
+						}
 					}
 				});
 
 		this.tcpReceive.setOnDataReceivedListener(dataReceivedListener);
 
 		try {
-			jmdns = JmDNS.create(InetAddress.getLocalHost(), "ESRReceiver");
+			InetAddress localhost = InetAddress.getLocalHost();
+
+			jmdns = JmDNS.create(localhost, localhost.getHostName()
+					.toLowerCase());
 			jmdns.addServiceListener(SERVICE_TYPE, serviceListener);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
+		}
+
+		if (port > 1) {
+			hostInterface.setText(String.format("%s:%d", ipAddress, port));
+			connectIfNotConnected();
 		}
 	}
 
@@ -485,7 +515,6 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		saveProperty("ipAddress", ipAddress);
 		saveProperty("port", String.valueOf(port));
 
-		connectionState.setText(ConnectionState.Connecting.name());
 		tcpReceive.connect(ipAddress, port);
 	}
 
@@ -493,19 +522,21 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		tcpReceive.close();
 	}
 
-	private void connectIfDisconnected() {
-		if (connectButton.getText().equalsIgnoreCase("connect")) {
+	private void connectIfNotConnected() {
+		if (tcpReceive.getCurrentState().equals(ConnectionState.Connecting)) {
+			disconnect();
+		}
+
+		if (tcpReceive.getCurrentState()
+				.compareTo(ConnectionState.Disconnected) == 0) {
 			connect();
-			connectButton.setText("Disconnect");
 		}
 	}
 
 	private void connectOrDisconnect() {
-		if (connectButton.getText().equalsIgnoreCase("connect")) {
+		if (tcpReceive.getCurrentState().equals(ConnectionState.Disconnected)) {
 			connect();
-			connectButton.setText("Disconnect");
 		} else {
-			connectButton.setText("Connect");
 			disconnect();
 		}
 	}

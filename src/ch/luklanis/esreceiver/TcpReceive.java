@@ -4,6 +4,8 @@ import java.io.BufferedReader;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.Socket;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import ch.luklanis.esreceiver.connectionstate.ConnectionState;
 import ch.luklanis.esreceiver.connectionstate.ConnectionStateChangedEvent;
@@ -17,6 +19,8 @@ public class TcpReceive  implements Runnable{
 	// clientClient: the client socket
 	// os: the output stream
 	// is: the input stream
+	private static final AtomicBoolean close = new AtomicBoolean(false);
+	private static final AtomicInteger currentState = new AtomicInteger(ConnectionState.Disconnected.ordinal());
 
 	static Socket clientSocket = null;
 	static DataInputStream is = null;
@@ -27,7 +31,6 @@ public class TcpReceive  implements Runnable{
 	private static OnDataReceivedListener onDataReceivedListener;
 	private static String host;
 	private static int port;
-	private static boolean close;
 	private Thread thread;
 
 	public void setOnConnectionStateChangeListener(OnConnectionStateChangeListener listener) {
@@ -39,7 +42,7 @@ public class TcpReceive  implements Runnable{
 	}
 	
 	public void close() {
-		close = true;
+		close.set(true);
 		thread.interrupt();
 
 		changeConnectionState(ConnectionState.Disconnected);
@@ -47,15 +50,18 @@ public class TcpReceive  implements Runnable{
 
 	public void connect(String host, int port) {
 
-		close = false;
+		close.set(false);
 		TcpReceive.host = host;
 		TcpReceive.port = port;
+		
+		changeConnectionState(ConnectionState.Connecting);
 
 		this.thread = new Thread(new TcpReceive());
 		this.thread.start();
 	}
 
 	protected void changeConnectionState(ConnectionState state) {
+		currentState.set(state.ordinal());
 		if (onConnectionStateChangeListener != null) {
 			onConnectionStateChangeListener.connectionStateChanged(
 					new ConnectionStateChangedEvent(this, state));
@@ -67,13 +73,17 @@ public class TcpReceive  implements Runnable{
 			onDataReceivedListener.dataReceived(
 					new DataReceivedEvent(this, responseLine));
 		}
-	}      
+	}  
+	
+	public ConnectionState getCurrentState() {
+		return ConnectionState.values()[currentState.get()];
+	}
 
 	@Override
 	public void run() {		
 		String responseLine;
 
-		while(!close) {
+		while(!close.get()) {
 			// Initialization section:
 			// Try to open a socket on a given host and port
 			// Try to open input and output streams
