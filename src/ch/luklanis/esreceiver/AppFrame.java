@@ -23,7 +23,13 @@ import java.awt.event.KeyEvent;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.List;
 import java.util.Properties;
 
 import javax.jmdns.JmDNS;
@@ -64,7 +70,7 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 
 	private static final String SERVICE_TYPE = "_esr._tcp.local.";
 
-	private JmDNS jmdns;
+	private ArrayList<JmDNS> jmdns = new ArrayList<JmDNS>();
 	private final ServiceListener serviceListener = new ServiceListener() {
 		public void serviceResolved(ServiceEvent event) {
 			System.out.println("RESOLVED: " + event.getName());
@@ -124,23 +130,29 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		public void serviceAdded(ServiceEvent event) {
 			System.out.println("ADDED: " + event.getName());
 
-			jmdns.requestServiceInfo(event.getType(), event.getName(), 1);
+			event.getDNS().requestServiceInfo(event.getType(), event.getName(), 1);
 		}
 	};
 
 	private final ComponentListener componentHiddenListener = new ComponentAdapter() {
 		@Override
 		public void componentHidden(ComponentEvent event) {
-			if (jmdns != null) {
-				jmdns.removeServiceListener(SERVICE_TYPE, serviceListener);
+			if (!tcpReceive.getCurrentState().equals(ConnectionState.Disconnected)) {
+				tcpReceive.close();
+			}
+			
+			for (int i = 0; i < jmdns.size(); i++) {
+				JmDNS jd = jmdns.get(i);
+				jd.removeServiceListener(SERVICE_TYPE, serviceListener);
 				try {
-					jmdns.close();
-					jmdns = null;
+					jd.close();
 				} catch (IOException ex) {
 					// TODO Auto-generated catch block
 					ex.printStackTrace();
 				}
 			}
+			
+			jmdns.clear();
 
 			((JFrame) (event.getComponent())).dispose();
 		}
@@ -408,11 +420,28 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		this.tcpReceive.setOnDataReceivedListener(dataReceivedListener);
 
 		try {
-			InetAddress localhost = InetAddress.getLocalHost();
+			Enumeration<NetworkInterface> nets = NetworkInterface
+					.getNetworkInterfaces();
+			for (NetworkInterface netint : Collections.list(nets)) {
 
-			jmdns = JmDNS.create(localhost, localhost.getHostName()
-					.toLowerCase());
-			jmdns.addServiceListener(SERVICE_TYPE, serviceListener);
+				if (netint.isLoopback() || !netint.isUp()) {
+					continue;
+				}
+				
+				Enumeration<InetAddress> inetAddresses = netint
+						.getInetAddresses();
+
+				for (InetAddress inetAddress : Collections.list(inetAddresses)) {
+					if (inetAddress instanceof Inet6Address) {
+						continue;
+					}
+					
+					JmDNS jd = JmDNS.create(inetAddress, inetAddress
+							.getHostName().toLowerCase());
+					jd.addServiceListener(SERVICE_TYPE, serviceListener);
+					jmdns.add(jd);
+				}
+			}
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
