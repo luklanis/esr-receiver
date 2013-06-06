@@ -94,7 +94,8 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 							1));
 				} else {
 					for (int i = 0; i < itemCount; i++) {
-						if (devices.getItemAt(i).ipAddress
+						if (!devices.getItemAt(i).ipAddress.isEmpty() &&
+								devices.getItemAt(i).ipAddress
 								.equals(newDevice.ipAddress)) {
 
 							if (devices.getSelectedIndex() == i) {
