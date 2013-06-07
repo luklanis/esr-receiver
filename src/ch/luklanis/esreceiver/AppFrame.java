@@ -88,24 +88,25 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 				int itemCount = devices.getItemCount();
 				boolean updateSelectedIndex = false;
 
-				if (itemCount == 1) {
-					devices.removeAllItems();
-					devices.addItem(new ServiceDescription("Auto connect", "",
-							1));
-				} else {
-					for (int i = 0; i < itemCount; i++) {
-						if (!devices.getItemAt(i).ipAddress.isEmpty() &&
-								devices.getItemAt(i).ipAddress
-								.equals(newDevice.ipAddress)) {
+				try {
+					if (devices.getItemAt(0).port <= 1) {
+						devices.remove(0);
+					} else {
+						for (int i = 0; i < itemCount; i++) {
+							if (!devices.getItemAt(i).ipAddress.isEmpty()
+									&& devices.getItemAt(i).ipAddress
+											.equals(newDevice.ipAddress)) {
 
-							if (devices.getSelectedIndex() == i) {
-								updateSelectedIndex = true;
+								if (devices.getSelectedIndex() == i) {
+									updateSelectedIndex = true;
+								}
+
+								devices.remove(i);
+								break;
 							}
-
-							devices.remove(i);
-							break;
 						}
 					}
+				} catch (Exception ex) {
 				}
 
 				devices.addItem(newDevice);
@@ -131,17 +132,19 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		public void serviceAdded(ServiceEvent event) {
 			System.out.println("ADDED: " + event.getName());
 
-			event.getDNS().requestServiceInfo(event.getType(), event.getName(), 1);
+			event.getDNS().requestServiceInfo(event.getType(), event.getName(),
+					1);
 		}
 	};
 
 	private final ComponentListener componentHiddenListener = new ComponentAdapter() {
 		@Override
 		public void componentHidden(ComponentEvent event) {
-			if (!tcpReceive.getCurrentState().equals(ConnectionState.Disconnected)) {
+			if (!tcpReceive.getCurrentState().equals(
+					ConnectionState.Disconnected)) {
 				tcpReceive.close();
 			}
-			
+
 			for (int i = 0; i < jmdns.size(); i++) {
 				JmDNS jd = jmdns.get(i);
 				jd.removeServiceListener(SERVICE_TYPE, serviceListener);
@@ -152,7 +155,7 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 					ex.printStackTrace();
 				}
 			}
-			
+
 			jmdns.clear();
 
 			((JFrame) (event.getComponent())).dispose();
@@ -428,7 +431,7 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 				if (netint.isLoopback() || !netint.isUp()) {
 					continue;
 				}
-				
+
 				Enumeration<InetAddress> inetAddresses = netint
 						.getInetAddresses();
 
@@ -436,7 +439,7 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 					if (inetAddress instanceof Inet6Address) {
 						continue;
 					}
-					
+
 					JmDNS jd = JmDNS.create(inetAddress, inetAddress
 							.getHostName().toLowerCase());
 					jd.addServiceListener(SERVICE_TYPE, serviceListener);

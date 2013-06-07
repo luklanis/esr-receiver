@@ -98,11 +98,11 @@ public class TcpReceive implements Runnable {
 			try {
 				changeConnectionState(ConnectionState.Connecting);
 				clientSocket = new Socket(host, port);
-				clientSocket.setSoTimeout(5000);
 				is = new DataInputStream(clientSocket.getInputStream());
+				//clientSocket.setSoTimeout(10000);
 				changeConnectionState(ConnectionState.Connected);
 			} catch (Exception e) {
-				System.err.println("Don't know about host " + host);
+				//System.err.println("Don't know about host " + host);
 
 				try {
 
@@ -123,19 +123,15 @@ public class TcpReceive implements Runnable {
 			// the server,
 			// once we received that then we want to break.
 			try {
-				while ((responseLine = is.readUTF()) != null) {
+				if ((responseLine = is.readUTF()) != null) {
 					responseLine = responseLine.replaceAll(KEEP_ALIVE, "");
 					
-					if (responseLine.equals(STOP_CONNECTION)) {
-						break;
-					}
-					
-					if (!responseLine.isEmpty()) {
+					if (!responseLine.equals(STOP_CONNECTION) && !responseLine.isEmpty()) {
 						dataReceived(responseLine);
 					}
 				}
 			} catch (IOException e) {
-				System.err.println("IOException:  " + e);
+				e.printStackTrace();
 			} finally {
 
 				// Clean up:
@@ -143,14 +139,7 @@ public class TcpReceive implements Runnable {
 				// close the socket
 				try {
 					is.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-
-				try {
-					if (clientSocket.isConnected()) {
-						clientSocket.close();
-					}
+					clientSocket.close();
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
