@@ -2,6 +2,7 @@ package ch.luklanis.esreceiver;
 
 import java.io.BufferedReader;
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -28,8 +29,11 @@ public class TcpReceive implements Runnable {
 
 	private static final String STOP_CONNECTION = "STOP";
 
+	private static final String ACK = "ACK";
+
 	static Socket clientSocket = null;
 	static DataInputStream is = null;
+	static DataOutputStream os = null;
 	static BufferedReader inputLine = null;
 	static boolean closed = false;
 
@@ -89,7 +93,7 @@ public class TcpReceive implements Runnable {
 
 	@Override
 	public void run() {
-		String responseLine;
+		String responseLine = "";
 
 		while (!close.get()) {
 			// Initialization section:
@@ -99,10 +103,10 @@ public class TcpReceive implements Runnable {
 				changeConnectionState(ConnectionState.Connecting);
 				clientSocket = new Socket(host, port);
 				is = new DataInputStream(clientSocket.getInputStream());
-				//clientSocket.setSoTimeout(10000);
+				// clientSocket.setSoTimeout(10000);
 				changeConnectionState(ConnectionState.Connected);
 			} catch (Exception e) {
-				//System.err.println("Don't know about host " + host);
+				// System.err.println("Don't know about host " + host);
 
 				try {
 
@@ -125,12 +129,20 @@ public class TcpReceive implements Runnable {
 			try {
 				if ((responseLine = is.readUTF()) != null) {
 					responseLine = responseLine.replaceAll(KEEP_ALIVE, "");
-					
-					if (!responseLine.equals(STOP_CONNECTION) && !responseLine.isEmpty()) {
+
+					if (!responseLine.isEmpty()) {
+
+						os = new DataOutputStream(
+								clientSocket.getOutputStream());
+						os.writeUTF(ACK);
+						os.flush();
+					}
+					if (!responseLine.equals(STOP_CONNECTION)
+							&& !responseLine.isEmpty()) {
 						dataReceived(responseLine);
 					}
 				}
-			} catch (IOException e) {
+			} catch (Exception e) {
 				e.printStackTrace();
 			} finally {
 
@@ -139,9 +151,30 @@ public class TcpReceive implements Runnable {
 				// close the socket
 				try {
 					is.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+
+				try {
+					os.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+
+				try {
 					clientSocket.close();
 				} catch (IOException e) {
 					e.printStackTrace();
+				}
+
+				if (responseLine.equals(STOP_CONNECTION)) {
+					changeConnectionState(ConnectionState.Connecting);
+					try {
+						Thread.sleep(1000);
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
 				}
 			}
 		}
