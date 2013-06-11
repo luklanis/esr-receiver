@@ -3,7 +3,7 @@
     <!--this file was created by Eclipse Runnable JAR Export Wizard-->
     <!--ANT 1.7 is required                                        -->
     <target name="create_run_jar">
-        <jar destfile="/home/lukas/workspace/esr-receiver/downloads/ESRReceiver-0.6.1.jar" filesetmanifest="mergewithoutmain" duplicate="preserve">
+        <jar destfile="/home/lukas/workspace/esr-receiver/downloads/ESRReceiver-0.6.2.jar" filesetmanifest="mergewithoutmain" duplicate="preserve">
             <manifest>
                 <attribute name="Main-Class" value="ch.luklanis.esreceiver.AppFrame"/>
                 <attribute name="Class-Path" value="."/>

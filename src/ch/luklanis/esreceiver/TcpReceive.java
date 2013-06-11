@@ -1,14 +1,12 @@
 package ch.luklanis.esreceiver;
 
-import java.io.BufferedReader;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import com.sun.xml.internal.ws.util.StringUtils;
 
 import ch.luklanis.esreceiver.connectionstate.ConnectionState;
 import ch.luklanis.esreceiver.connectionstate.ConnectionStateChangedEvent;
@@ -32,16 +30,12 @@ public class TcpReceive implements Runnable {
 	private static final String ACK = "ACK";
 
 	static Socket clientSocket = null;
-	static DataInputStream is = null;
-	static DataOutputStream os = null;
-	static BufferedReader inputLine = null;
-	static boolean closed = false;
 
-	private static OnConnectionStateChangeListener onConnectionStateChangeListener;
-	private static OnDataReceivedListener onDataReceivedListener;
-	private static String host;
-	private static int port;
-	private Thread thread;
+	private OnConnectionStateChangeListener onConnectionStateChangeListener;
+	private OnDataReceivedListener onDataReceivedListener;
+	private String host;
+	private int port;
+	private static Thread mReceiveDataThread;
 
 	public void setOnConnectionStateChangeListener(
 			OnConnectionStateChangeListener listener) {
@@ -54,7 +48,27 @@ public class TcpReceive implements Runnable {
 
 	public void close() {
 		close.set(true);
-		thread.interrupt();
+
+		if (mReceiveDataThread != null) {
+			if (clientSocket != null) {
+				try {
+					clientSocket.close();
+				} catch (IOException e) {
+				}
+				clientSocket = null;
+			}
+			
+			try {
+				mReceiveDataThread.join(500);
+			} catch (InterruptedException e) {
+			}
+			
+			if (mReceiveDataThread.isAlive()) {
+				mReceiveDataThread.interrupt();
+			}
+
+			mReceiveDataThread = null;
+		}
 
 		changeConnectionState(ConnectionState.Disconnected);
 	}
@@ -62,13 +76,16 @@ public class TcpReceive implements Runnable {
 	public void connect(String host, int port) {
 
 		close.set(false);
-		TcpReceive.host = host;
-		TcpReceive.port = port;
+		this.host = host;
+		this.port = port;
 
 		changeConnectionState(ConnectionState.Connecting);
 
-		this.thread = new Thread(new TcpReceive());
-		this.thread.start();
+		if (mReceiveDataThread == null) {
+			mReceiveDataThread = new Thread(this);
+			mReceiveDataThread.setName("receiveDataThread");
+			mReceiveDataThread.start();
+		}
 	}
 
 	protected void changeConnectionState(ConnectionState state) {
@@ -94,6 +111,8 @@ public class TcpReceive implements Runnable {
 	@Override
 	public void run() {
 		String responseLine = "";
+		DataInputStream is = null;
+		DataOutputStream os = null;
 
 		while (!close.get()) {
 			// Initialization section:
@@ -106,10 +125,7 @@ public class TcpReceive implements Runnable {
 				// clientSocket.setSoTimeout(10000);
 				changeConnectionState(ConnectionState.Connected);
 			} catch (Exception e) {
-				// System.err.println("Don't know about host " + host);
-
 				try {
-
 					if (clientSocket.isConnected()) {
 						clientSocket.close();
 					}
@@ -142,6 +158,7 @@ public class TcpReceive implements Runnable {
 						dataReceived(responseLine);
 					}
 				}
+			} catch (SocketException e) {
 			} catch (Exception e) {
 				e.printStackTrace();
 			} finally {
@@ -149,22 +166,31 @@ public class TcpReceive implements Runnable {
 				// Clean up:
 				// close the input stream
 				// close the socket
-				try {
-					is.close();
-				} catch (IOException e) {
-					e.printStackTrace();
+				if (is != null) {
+					try {
+						is.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+					is = null;
 				}
 
-				try {
-					os.close();
-				} catch (IOException e) {
-					e.printStackTrace();
+				if (os != null) {
+					try {
+						os.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+					os = null;
 				}
 
-				try {
-					clientSocket.close();
-				} catch (IOException e) {
-					e.printStackTrace();
+				if (clientSocket != null) {
+					try {
+						clientSocket.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+					clientSocket = null;
 				}
 
 				if (responseLine.equals(STOP_CONNECTION)) {
@@ -172,8 +198,6 @@ public class TcpReceive implements Runnable {
 					try {
 						Thread.sleep(1000);
 					} catch (InterruptedException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
 					}
 				}
 			}

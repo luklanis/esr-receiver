@@ -29,7 +29,6 @@ import java.net.NetworkInterface;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
-import java.util.List;
 import java.util.Properties;
 
 import javax.jmdns.JmDNS;
@@ -64,7 +63,7 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 	 * 
 	 */
 	private static final long serialVersionUID = -1668274381664960966L;
-	private static final String CURRENT_VERSION = "0.6.1";
+	private static final String CURRENT_VERSION = "0.6.2";
 	private static final String propertiesFile = System.getProperty("user.dir")
 			+ "/ESRReceiver.properties";
 
@@ -151,7 +150,6 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 				try {
 					jd.close();
 				} catch (IOException ex) {
-					// TODO Auto-generated catch block
 					ex.printStackTrace();
 				}
 			}
@@ -447,7 +445,6 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 				}
 			}
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 
