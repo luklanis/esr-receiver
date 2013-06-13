@@ -5,6 +5,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -23,9 +24,10 @@ public class TcpReceive implements Runnable {
 	private static final AtomicBoolean close = new AtomicBoolean(false);
 	private static final AtomicInteger currentState = new AtomicInteger(
 			ConnectionState.Disconnected.ordinal());
+	
 	private static final String KEEP_ALIVE = "KA";
-
 	private static final String STOP_CONNECTION = "STOP";
+	private static final String START_SERVER = "START";
 
 	private static final String ACK = "ACK";
 
@@ -113,6 +115,7 @@ public class TcpReceive implements Runnable {
 		String responseLine = "";
 		DataInputStream is = null;
 		DataOutputStream os = null;
+		
 
 		while (!close.get()) {
 			// Initialization section:
@@ -122,9 +125,9 @@ public class TcpReceive implements Runnable {
 				changeConnectionState(ConnectionState.Connecting);
 				clientSocket = new Socket(host, port);
 				is = new DataInputStream(clientSocket.getInputStream());
-				// clientSocket.setSoTimeout(10000);
+				//clientSocket.setSoTimeout(5000);
 				changeConnectionState(ConnectionState.Connected);
-			} catch (Exception e) {
+			} catch (Exception e) {				
 				try {
 					if (clientSocket.isConnected()) {
 						clientSocket.close();
@@ -144,7 +147,9 @@ public class TcpReceive implements Runnable {
 			// once we received that then we want to break.
 			try {
 				if ((responseLine = is.readUTF()) != null) {
-					responseLine = responseLine.replaceAll(KEEP_ALIVE, "");
+					responseLine = responseLine
+							.replaceAll(KEEP_ALIVE, "")
+							.replaceAll(START_SERVER, "");
 
 					if (!responseLine.isEmpty()) {
 
@@ -158,6 +163,7 @@ public class TcpReceive implements Runnable {
 						dataReceived(responseLine);
 					}
 				}
+			} catch (SocketTimeoutException e) {
 			} catch (SocketException e) {
 			} catch (Exception e) {
 				e.printStackTrace();
