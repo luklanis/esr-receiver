@@ -63,7 +63,7 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 	 * 
 	 */
 	private static final long serialVersionUID = -1668274381664960966L;
-	private static final String CURRENT_VERSION = "0.6.2";
+	private static final String CURRENT_VERSION = "0.6.3";
 	private static final String propertiesFile = System.getProperty("user.dir")
 			+ "/ESRReceiver.properties";
 
