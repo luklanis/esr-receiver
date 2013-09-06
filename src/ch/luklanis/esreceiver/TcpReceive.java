@@ -72,7 +72,7 @@ public class TcpReceive {
 				
 				@Override
 				public void onMessage(String arg0) {
-					dataReceived(arg0);
+					dataReceived(arg0.split(".")[0]);
 				}
 				
 				@Override
