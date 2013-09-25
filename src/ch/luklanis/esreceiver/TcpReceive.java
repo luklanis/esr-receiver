@@ -1,21 +1,11 @@
 package ch.luklanis.esreceiver;
 
-import java.io.Console;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.net.Socket;
-import java.net.SocketException;
-import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
-
-import com.sun.jndi.toolkit.url.Uri;
 
 import ch.luklanis.esreceiver.connectionstate.ConnectionState;
 import ch.luklanis.esreceiver.connectionstate.ConnectionStateChangedEvent;
@@ -72,6 +62,7 @@ public class TcpReceive {
 				
 				@Override
 				public void onMessage(String arg0) {
+					System.out.println(arg0);
 					dataReceived(arg0.split(".")[0]);
 				}
 				
