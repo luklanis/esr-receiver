@@ -40,8 +40,6 @@ public class TcpReceive {
 
 	public void close() {
 		webSocketClient.close();
-
-		changeConnectionState(ConnectionState.Disconnected);
 	}
 
 	public void connect(String host, int port) {
@@ -62,21 +60,23 @@ public class TcpReceive {
 				
 				@Override
 				public void onMessage(String arg0) {
-					System.out.println(arg0);
-					dataReceived(arg0.split(".")[0]);
+					String filtered = arg0.substring(0, arg0.indexOf("."));
+					dataReceived(filtered);
 				}
 				
 				@Override
 				public void onError(Exception arg0) {
 					System.out.println(arg0.getMessage());
-				}
-				
-				@Override
-				public void onClose(int arg0, String arg1, boolean arg2) {
+					
 					changeConnectionState(ConnectionState.Connecting);
 					
 					TcpReceive self = TcpReceive.this;
 					self.connect(self.host, self.port);
+				}
+				
+				@Override
+				public void onClose(int arg0, String arg1, boolean arg2) {
+					changeConnectionState(ConnectionState.Disconnected);
 				}
 			};
 			
