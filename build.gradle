@@ -1,0 +1,36 @@
+apply plugin: 'java'
+
+archivesBaseName = 'EsrReceiver'
+
+sourceCompatibility = 1.7
+version = '0.1'
+
+repositories {
+    mavenCentral()
+
+    maven {
+        url "http://maven.mashape.com/releases"
+    }
+}
+
+jar {
+    from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+    manifest {
+        attributes 'Implementation-Title': 'ESR Receiver',
+                'Implementation-Version': version,
+                'Main-Class': 'ch.luklanis.esreceiver.AppFrame',
+                'Class-Path': '.'
+    }
+}
+
+dependencies {
+    compile 'com.mashape.unirest:unirest-java:1.2.5'
+    compile 'org.apache.httpcomponents:httpclient:4.3'
+    compile 'org.apache.httpcomponents:httpasyncclient:4.0-beta4'
+    compile 'org.apache.httpcomponents:httpmime:4.3'
+    compile 'org.json:json:20090211'
+}
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '1.8'
+}

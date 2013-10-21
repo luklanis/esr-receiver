@@ -31,10 +31,6 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.Properties;
 
-import javax.jmdns.JmDNS;
-import javax.jmdns.ServiceEvent;
-import javax.jmdns.ServiceInfo;
-import javax.jmdns.ServiceListener;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.JButton;
@@ -63,98 +59,19 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 	 * 
 	 */
 	private static final long serialVersionUID = -1668274381664960966L;
-	private static final String CURRENT_VERSION = "0.6.4";
+	private static final String CURRENT_VERSION = "0.6.4_http";
 	private static final String propertiesFile = System.getProperty("user.dir")
 			+ "/ESRReceiver.properties";
 
 	private static final String SERVICE_TYPE = "_esr._tcp.local.";
 
-	private ArrayList<JmDNS> jmdns = new ArrayList<JmDNS>();
-	private final ServiceListener serviceListener = new ServiceListener() {
-		public void serviceResolved(ServiceEvent event) {
-			System.out.println("RESOLVED: " + event.getName());
-
-			ServiceInfo info = event.getInfo();
-
-			boolean autoConnect = ((ServiceDescription) devices
-					.getSelectedItem()).port == 1;
-
-			ServiceDescription newDevice = new ServiceDescription(
-					info.getNiceTextString(), info.getHostAddresses()[0],
-					info.getPort());
-
-			try {
-				int itemCount = devices.getItemCount();
-				boolean updateSelectedIndex = false;
-
-				try {
-					if (devices.getItemAt(0).port <= 1) {
-						devices.remove(0);
-					} else {
-						for (int i = 0; i < itemCount; i++) {
-							if (!devices.getItemAt(i).ipAddress.isEmpty()
-									&& devices.getItemAt(i).ipAddress
-											.equals(newDevice.ipAddress)) {
-
-								if (devices.getSelectedIndex() == i) {
-									updateSelectedIndex = true;
-								}
-
-								devices.remove(i);
-								break;
-							}
-						}
-					}
-				} catch (Exception ex) {
-				}
-
-				devices.addItem(newDevice);
-
-				if (updateSelectedIndex) {
-					devices.setSelectedIndex(devices.getItemCount() - 1);
-				}
-
-				if (autoConnect) {
-					devices.setSelectedIndex(devices.getItemCount() - 1);
-					connectIfNotConnected();
-				}
-			} catch (Exception ex) {
-				ex.printStackTrace();
-			}
-		}
-
-		public void serviceRemoved(ServiceEvent event) {
-			// notifyUser("Service removed: " +
-			// ev.getName());
-		}
-
-		public void serviceAdded(ServiceEvent event) {
-			System.out.println("ADDED: " + event.getName());
-
-			event.getDNS().requestServiceInfo(event.getType(), event.getName(),
-					1);
-		}
-	};
-
 	private final ComponentListener componentHiddenListener = new ComponentAdapter() {
 		@Override
 		public void componentHidden(ComponentEvent event) {
-			if (!tcpReceive.getCurrentState().equals(
+			if (!httpReceive.getCurrentState().equals(
 					ConnectionState.Disconnected)) {
-				tcpReceive.close();
+				httpReceive.close();
 			}
-
-			for (int i = 0; i < jmdns.size(); i++) {
-				JmDNS jd = jmdns.get(i);
-				jd.removeServiceListener(SERVICE_TYPE, serviceListener);
-				try {
-					jd.close();
-				} catch (IOException ex) {
-					ex.printStackTrace();
-				}
-			}
-
-			jmdns.clear();
 
 			((JFrame) (event.getComponent())).dispose();
 		}
@@ -215,35 +132,18 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 
 	private JButton connectButton;
 	private JLabel connectionState;
-	private TcpReceive tcpReceive;
-	private JComboBox<ServiceDescription> devices;
+	private HttpReceive httpReceive;
+	private JTextArea emailTextField;
 	private JCheckBox autoPasteCheckBox;
 	private Properties properties;
 	private JTextArea clipboardData;
 	private JCheckBox removeSpaceCheckBox;
-	private JTextField hostInterface;
-
-	private static class ServiceDescription {
-		public final String name;
-		public final String ipAddress;
-		public final int port;
-
-		public ServiceDescription(String name, String ipAddress, int port) {
-			this.name = name;
-			this.ipAddress = ipAddress;
-			this.port = port;
-		}
-
-		@Override
-		public String toString() {
-			return name;
-		}
-	}
+	private JTextField keyTextField;
 
 	public AppFrame() {
 		super("ESR Receiver");
 
-		setDefaultCloseOperation(EXIT_ON_CLOSE);
+		//setDefaultCloseOperation(EXIT_ON_CLOSE);
 		setSize(280, 240);
 		setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
 		addComponentListener(componentHiddenListener);
@@ -252,8 +152,8 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		boolean autoPaste = false;
 		boolean removeSpace = false;
 		properties = new Properties();
-		int port = 0;
-		String ipAddress = "";
+		String password = "";
+		String emailAddress = "";
 
 		try {
 			inputStream = new FileInputStream(propertiesFile);
@@ -263,13 +163,13 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 			removeSpace = properties.getProperty("removeSpace")
 					.equalsIgnoreCase("true");
 
-			port = Integer.parseInt(properties.getProperty("port"));
-			ipAddress = properties.getProperty("ipAddress");
+			password = properties.getProperty("password");
+			emailAddress = properties.getProperty("emailAddress");
 		} catch (Exception e) {
 			saveProperty("autoPaste", String.valueOf(autoPaste));
 			saveProperty("removeSpace", String.valueOf(removeSpace));
-			saveProperty("ipAddress", "");
-			saveProperty("port", String.valueOf(port));
+			saveProperty("emailAddress", "");
+			saveProperty("password", "");
 
 			e.printStackTrace();
 		} finally {
@@ -284,49 +184,25 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		JPanel body = new JPanel(new SWTGridLayout(2, false));
 		getContentPane().add(body);
 
-		body.add(new JLabel("Device:"));
+		body.add(new JLabel("Email address:"));
 
-		devices = new JComboBox<AppFrame.ServiceDescription>();
-		devices.addItem(new ServiceDescription(
-				"Please start the ESR Scanner...", "", 1));
-
-		devices.addItemListener(new ItemListener() {
-
-			@Override
-			public void itemStateChanged(ItemEvent e) {
-				if (e.getStateChange() == ItemEvent.SELECTED) {
-					ServiceDescription selectedService = (ServiceDescription) e
-							.getItem();
-
-					if (selectedService.port > 1) {
-						if (tcpReceive.getCurrentState().compareTo(
-								ConnectionState.Disconnected) > 0) {
-							disconnect();
-						}
-
-						String connection = String
-								.format("%s:%d", selectedService.ipAddress,
-										selectedService.port);
-						hostInterface.setText(connection);
-						hostInterface.invalidate();
-					}
-				}
-			}
-		});
+		emailTextField = new JTextArea();
+        emailTextField.setText(emailAddress);
 
 		SWTGridData data = new SWTGridData();
 		data.grabExcessHorizontalSpace = true;
 		data.horizontalAlignment = SWTGridData.FILL;
-		body.add(devices, data);
+		body.add(emailTextField, data);
 
-		body.add(new JLabel("Host (ip:port):"));
+		body.add(new JLabel("Password:"));
 
-		hostInterface = new JTextField();
+		keyTextField = new JTextField();
+        keyTextField.setText(password);
 
 		data = new SWTGridData();
 		data.grabExcessHorizontalSpace = true;
 		data.horizontalAlignment = SWTGridData.FILL;
-		body.add(hostInterface, data);
+		body.add(keyTextField, data);
 
 		autoPasteCheckBox = new JCheckBox("Auto paste");
 		autoPasteCheckBox.setSelected(autoPaste);
@@ -398,8 +274,8 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 		version.setAlignmentX(JLabel.RIGHT_ALIGNMENT);
 		footer.add(version);
 
-		this.tcpReceive = new TcpReceive();
-		this.tcpReceive
+		this.httpReceive = new HttpReceive();
+		this.httpReceive
 				.setOnConnectionStateChangeListener(new OnConnectionStateChangeListener() {
 
 					@Override
@@ -408,50 +284,22 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 						connectionState.setText(event.getConnectionState()
 								.name());
 
-						if (event.getConnectionState().equals(
-								ConnectionState.Disconnected)) {
+						if (event.getConnectionState()
+								.equals(ConnectionState.Disconnected) || 
+								event.getConnectionState()
+								.equals(ConnectionState.AuthenticationError)) {
 							connectButton.setText("Connect");
-							hostInterface.setEnabled(true);
+							keyTextField.setEnabled(true);
+							emailTextField.setEnabled(true);
 						} else {
 							connectButton.setText("Disconnect");
-							hostInterface.setEnabled(false);
+							keyTextField.setEnabled(false);
+							emailTextField.setEnabled(false);
 						}
 					}
 				});
 
-		this.tcpReceive.setOnDataReceivedListener(dataReceivedListener);
-
-		try {
-			Enumeration<NetworkInterface> nets = NetworkInterface
-					.getNetworkInterfaces();
-			for (NetworkInterface netint : Collections.list(nets)) {
-
-				if (netint.isLoopback() || !netint.isUp()) {
-					continue;
-				}
-
-				Enumeration<InetAddress> inetAddresses = netint
-						.getInetAddresses();
-
-				for (InetAddress inetAddress : Collections.list(inetAddresses)) {
-					if (inetAddress instanceof Inet6Address) {
-						continue;
-					}
-
-					JmDNS jd = JmDNS.create(inetAddress, inetAddress
-							.getHostName().toLowerCase());
-					jd.addServiceListener(SERVICE_TYPE, serviceListener);
-					jmdns.add(jd);
-				}
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-
-		if (port > 1) {
-			hostInterface.setText(String.format("%s:%d", ipAddress, port));
-			connectIfNotConnected();
-		}
+		this.httpReceive.setOnDataReceivedListener(dataReceivedListener);
 	}
 
 	public static void main(String... args) {
@@ -534,37 +382,26 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 	}
 
 	private void connect() {
-		String[] inetAddress = hostInterface.getText().split(":");
-		String ipAddress = inetAddress[0];
-		int port = Integer.parseInt(inetAddress[1]);
+		String emailAddress = emailTextField.getText();
+		String password = keyTextField.getText();
 
-		if (ipAddress == null || ipAddress.isEmpty() || port <= 1) {
+		if (emailAddress == null || emailAddress.isEmpty() ||
+				password == null || password.isEmpty()) {
 			return;
 		}
 
-		saveProperty("ipAddress", ipAddress);
-		saveProperty("port", String.valueOf(port));
+		saveProperty("emailAddress", emailAddress);
+		saveProperty("password", password);
 
-		tcpReceive.connect(ipAddress, port);
+		httpReceive.connect(emailAddress, password);
 	}
 
 	private void disconnect() {
-		tcpReceive.close();
-	}
-
-	private void connectIfNotConnected() {
-		if (tcpReceive.getCurrentState().equals(ConnectionState.Connecting)) {
-			disconnect();
-		}
-
-		if (tcpReceive.getCurrentState()
-				.compareTo(ConnectionState.Disconnected) == 0) {
-			connect();
-		}
+		httpReceive.close();
 	}
 
 	private void connectOrDisconnect() {
-		if (tcpReceive.getCurrentState().equals(ConnectionState.Disconnected)) {
+		if (httpReceive.getCurrentState().equals(ConnectionState.Disconnected)) {
 			connect();
 		} else {
 			disconnect();
