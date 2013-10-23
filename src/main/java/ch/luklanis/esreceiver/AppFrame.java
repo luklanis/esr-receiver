@@ -14,9 +14,7 @@ import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.ClipboardOwner;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.KeyEvent;
+import java.awt.event.*;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -58,9 +56,9 @@ public class AppFrame extends JFrame implements ClipboardOwner {
         public void dataReceived(DataReceivedEvent event) {
             String codeRow = event.getData();
 
-            if (removeSpaceCheckBox.isSelected()) {
-                codeRow = codeRow.replace(" ", "");
-            }
+//            if (removeSpaceCheckBox.isSelected()) {
+//                codeRow = codeRow.replace(" ", "");
+//            }
 
             setClipboardContents(codeRow);
 
@@ -79,8 +77,6 @@ public class AppFrame extends JFrame implements ClipboardOwner {
                     robot.keyPress(KeyEvent.VK_V);
                     robot.keyRelease(KeyEvent.VK_V);
                     robot.keyRelease(KeyEvent.VK_CONTROL);
-                    robot.keyPress(KeyEvent.VK_ENTER);
-                    robot.keyRelease(KeyEvent.VK_ENTER);
                 } else if (OSValidator.isMac()) {
                     // ⌘-V on Mac
                     robot.keyPress(KeyEvent.VK_META);
@@ -89,6 +85,16 @@ public class AppFrame extends JFrame implements ClipboardOwner {
                     robot.keyRelease(KeyEvent.VK_META);
                 } else {
                     throw new AssertionError("Not tested on " + OSValidator.OS);
+                }
+
+                if (addKeysComboBox.getSelectedItem().toString().contains("Tab")) {
+                    robot.keyPress(KeyEvent.VK_TAB);
+                    robot.keyRelease(KeyEvent.VK_TAB);
+                }
+
+                if (addKeysComboBox.getSelectedItem().toString().contains("Enter")) {
+                    robot.keyPress(KeyEvent.VK_ENTER);
+                    robot.keyRelease(KeyEvent.VK_ENTER);
                 }
             }
 
@@ -100,18 +106,18 @@ public class AppFrame extends JFrame implements ClipboardOwner {
     private JButton connectButton;
     private JLabel connectionState;
     private HttpReceive httpReceive;
-    private JTextArea emailTextField;
+    private JTextField emailTextField;
     private JCheckBox autoPasteCheckBox;
     private Properties properties;
     private JTextArea clipboardData;
-    private JCheckBox removeSpaceCheckBox;
     private JPasswordField passwordField;
+    private JComboBox<String> addKeysComboBox;
 
     public AppFrame() {
         super("ESR Receiver");
 
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-        setSize(280, 240);
+        setSize(380, 240);
         //setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
         //addComponentListener(componentHiddenListener);
 
@@ -121,12 +127,14 @@ public class AppFrame extends JFrame implements ClipboardOwner {
         properties = new Properties();
         String password = "";
         String emailAddress = "";
+        String addKeys = "";
 
         try {
             inputStream = new FileInputStream(propertiesFile);
             properties.load(inputStream);
             autoPaste = properties.getProperty("autoPaste").equalsIgnoreCase(
                     "true");
+            addKeys = properties.getProperty("addKeys");
             removeSpace = properties.getProperty("removeSpace")
                     .equalsIgnoreCase("true");
 
@@ -154,7 +162,7 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 
         body.add(new JLabel("Email address:"));
 
-        emailTextField = new JTextArea();
+        emailTextField = new JTextField();
         emailTextField.setText(emailAddress);
 
         SWTGridData data = new SWTGridData();
@@ -178,28 +186,62 @@ public class AppFrame extends JFrame implements ClipboardOwner {
 
             @Override
             public void actionPerformed(ActionEvent arg0) {
+                boolean isSelected = autoPasteCheckBox.isSelected();
                 saveProperty("autoPaste",
-                        String.valueOf(autoPasteCheckBox.isSelected()));
+                        String.valueOf(isSelected));
+                addKeysComboBox.setEnabled(isSelected);
             }
         });
 
         body.add(autoPasteCheckBox);
 
-        removeSpaceCheckBox = new JCheckBox("Remove space");
-        removeSpaceCheckBox.setSelected(removeSpace);
-        removeSpaceCheckBox.addActionListener(new ActionListener() {
+        JPanel keys = new JPanel(new SWTGridLayout(3, false));
+        body.add(keys);
+
+        keys.add(new JLabel("Add"));
+
+        addKeysComboBox = new JComboBox<String>();
+        addKeysComboBox.setEnabled(autoPaste);
+        addKeysComboBox.addItem("Nothing");
+        addKeysComboBox.addItem("<Enter>");
+        addKeysComboBox.addItem("<Tab><Enter>");
+
+        if (!addKeys.isEmpty()) {
+            addKeysComboBox.setSelectedItem(addKeys);
+        }
+
+        addKeysComboBox.addItemListener(new ItemListener() {
 
             @Override
-            public void actionPerformed(ActionEvent arg0) {
-                saveProperty("removeSpace",
-                        String.valueOf(removeSpaceCheckBox.isSelected()));
+            public void itemStateChanged(ItemEvent e) {
+                if (e.getStateChange() == ItemEvent.SELECTED) {
+                    saveProperty("addKeys", e.getItem().toString());
+                }
             }
         });
 
         data = new SWTGridData();
         data.grabExcessHorizontalSpace = true;
-        data.horizontalAlignment = SWTGridData.RIGHT;
-        body.add(removeSpaceCheckBox, data);
+//        keys.add(addKeysComboBox, data);
+        keys.add(addKeysComboBox);
+
+        keys.add(new JLabel("after paste"));
+
+//        removeSpaceCheckBox = new JCheckBox("Remove space");
+//        removeSpaceCheckBox.setSelected(removeSpace);
+//        removeSpaceCheckBox.addActionListener(new ActionListener() {
+//
+//            @Override
+//            public void actionPerformed(ActionEvent arg0) {
+//                saveProperty("removeSpace",
+//                        String.valueOf(removeSpaceCheckBox.isSelected()));
+//            }
+//        });
+
+//        data = new SWTGridData();
+//        data.grabExcessHorizontalSpace = true;
+//        data.horizontalAlignment = SWTGridData.RIGHT;
+//        body.add(removeSpaceCheckBox, data);
 
         connectButton = new JButton("Connect");
         connectButton.addActionListener(connectButtonClicked);
