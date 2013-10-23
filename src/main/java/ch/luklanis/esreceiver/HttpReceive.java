@@ -23,12 +23,10 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-
 public class HttpReceive {
 
     public static final String PROVIDER = "BC";
-    public static final int PBE_ITERATION_COUNT = 10000;
+    public static final int PBE_ITERATION_COUNT = 5000;
 
     private static final String HASH_ALGORITHM = "SHA-512";
     private static final String PBE_ALGORITHM = "PBEWithSHA256And256BitAES-CBC-BC";
@@ -206,16 +204,15 @@ public class HttpReceive {
         PBEKeySpec pbeKeySpec = new PBEKeySpec(pw, salt.getBytes("UTF-8"), PBE_ITERATION_COUNT, 256);
         SecretKeyFactory factory = SecretKeyFactory.getInstance(PBE_ALGORITHM, PROVIDER);
         SecretKey tmp = factory.generateSecret(pbeKeySpec);
-        SecretKey secret = new SecretKeySpec(tmp.getEncoded(), SECRET_KEY_ALGORITHM);
-        return secret;
+        return new SecretKeySpec(tmp.getEncoded(), SECRET_KEY_ALGORITHM);
     }
 
     private static String toHexString(byte[] data) {
-        StringBuffer hexString = new StringBuffer();
+        StringBuilder hexString = new StringBuilder();
 
-        for (int i = 0; i < data.length; i++) {
-            String hex = Integer.toHexString(0xff & data[i]);
-            if(hex.length() == 1) hexString.append('0');
+        for (byte d : data) {
+            String hex = Integer.toHexString(0xff & d);
+            if (hex.length() == 1) hexString.append('0');
             hexString.append(hex);
         }
 
