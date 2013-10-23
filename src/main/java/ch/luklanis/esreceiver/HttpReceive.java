@@ -23,13 +23,15 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+
 public class HttpReceive {
 
     public static final String PROVIDER = "BC";
-    public static final int PBE_ITERATION_COUNT = 1000;
+    public static final int PBE_ITERATION_COUNT = 10000;
 
     private static final String HASH_ALGORITHM = "SHA-512";
-    private static final String PBE_ALGORITHM = "PBEWithSHA256And256BitAES-CBC";
+    private static final String PBE_ALGORITHM = "PBEWithSHA256And256BitAES-CBC-BC";
     private static final String CIPHER_ALGORITHM = "AES/CBC/PKCS5Padding";
     private static final String SECRET_KEY_ALGORITHM = "AES";
 
@@ -77,6 +79,8 @@ public class HttpReceive {
                         System.out.println("Timeout. Start long polling again...");
                         future = Unirest.get(url)
                                 .asJsonAsync(unirestCallback);
+                    } else {
+                        changeConnectionState(ConnectionState.AuthenticationError);
                     }
                 } catch (JSONException e) {
                     e.printStackTrace();
@@ -89,6 +93,11 @@ public class HttpReceive {
             System.out.println("Http request cancelled");
         }
     };
+
+    public HttpReceive() {
+        Security.addProvider(new org.bouncycastle.jce.provider
+                .BouncyCastleProvider());
+    }
 
     public void setOnConnectionStateChangeListener(
             OnConnectionStateChangeListener listener) {
@@ -145,7 +154,7 @@ public class HttpReceive {
         String input = password + salt;
         MessageDigest md = MessageDigest.getInstance(HASH_ALGORITHM, PROVIDER);
         byte[] out = md.digest(input.getBytes("UTF-8"));
-        return Base64.encodeBase64String(out);
+        return Base64.encodeBase64URLSafeString(out);
     }
 
 //	public static String sha256(String base) {
@@ -188,11 +197,29 @@ public class HttpReceive {
         return new String(decryptedText, "UTF-8");
     }
 
-    public SecretKey getSecretKey(String password, String salt) throws NoSuchProviderException, NoSuchAlgorithmException, InvalidKeySpecException {
-        PBEKeySpec pbeKeySpec = new PBEKeySpec(password.toCharArray(), salt.getBytes(), PBE_ITERATION_COUNT, 256);
+    public SecretKey getSecretKey(String password, String salt)
+            throws NoSuchProviderException,
+            NoSuchAlgorithmException,
+            InvalidKeySpecException,
+            UnsupportedEncodingException {
+        char[] pw = toHexString(password.getBytes("UTF-8")).toCharArray();
+        PBEKeySpec pbeKeySpec = new PBEKeySpec(pw, salt.getBytes("UTF-8"), PBE_ITERATION_COUNT, 256);
         SecretKeyFactory factory = SecretKeyFactory.getInstance(PBE_ALGORITHM, PROVIDER);
         SecretKey tmp = factory.generateSecret(pbeKeySpec);
-        return new SecretKeySpec(tmp.getEncoded(), SECRET_KEY_ALGORITHM);
+        SecretKey secret = new SecretKeySpec(tmp.getEncoded(), SECRET_KEY_ALGORITHM);
+        return secret;
+    }
+
+    private static String toHexString(byte[] data) {
+        StringBuffer hexString = new StringBuffer();
+
+        for (int i = 0; i < data.length; i++) {
+            String hex = Integer.toHexString(0xff & data[i]);
+            if(hex.length() == 1) hexString.append('0');
+            hexString.append(hex);
+        }
+
+        return hexString.toString();
     }
 
 //    public String decrypt(byte[] message, byte[] iv)
