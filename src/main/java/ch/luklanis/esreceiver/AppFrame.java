@@ -206,7 +206,7 @@ public class AppFrame extends JFrame implements ClipboardOwner {
         addKeysComboBox.addItem("<Enter>");
         addKeysComboBox.addItem("<Tab><Enter>");
 
-        if (!addKeys.isEmpty()) {
+        if (addKeys != null && !addKeys.isEmpty()) {
             addKeysComboBox.setSelectedItem(addKeys);
         }
 

@@ -1,25 +1,18 @@
 apply plugin: 'java'
+apply plugin: 'application'
 
 archivesBaseName = 'EsrReceiver_http'
 
+mainClassName = "ch.luklanis.esreceiver.AppFrame"
+
 sourceCompatibility = 1.7
-version = '0.1'
+version = '0.2'
 
 repositories {
     mavenCentral()
 
     maven {
         url "http://maven.mashape.com/releases"
-    }
-}
-
-jar {
-    from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
-    manifest {
-        attributes 'Implementation-Title': 'ESR Receiver',
-                'Implementation-Version': version,
-                'Main-Class': 'ch.luklanis.esreceiver.AppFrame',
-                'Class-Path': '.'
     }
 }
 
@@ -32,6 +25,54 @@ dependencies {
     compile 'org.bouncycastle:bcprov-jdk15on:1.49'
 }
 
+jar {
+    //from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+    manifest {
+        attributes 'Implementation-Title': 'ESR Receiver',
+                'Implementation-Version': version,
+                'Main-Class': 'ch.luklanis.esreceiver.AppFrame',
+                'Class-Path': '.'
+    }
+}
+
 task wrapper(type: Wrapper) {
     gradleVersion = '1.8'
 }
+
+//task copyDependencies (type: Sync) {
+//    //into "$buildDir/output/lib"
+//    into "$buildDir/libs"
+//    from configurations.runtime
+//}
+//
+//jar.dependsOn copyDependencies
+
+//task createStarters << {
+//    File bat = new File("$buildDir/tmp/EsrReceiver.bat")
+//    bat.text = /java -jar libs\${jar.archiveName}/
+//
+//    File sh = new File("$buildDir/tmp/EsrReceiver.sh")
+//    sh.text = "java -jar libs/${jar.archiveName}"
+//}
+
+//task zip(type: Zip) {
+//    File dirs = new File("$buildDir/tmp/starters")
+//    dirs.mkdirs()
+//
+//    File bat = new File("$buildDir/tmp/starters/EsrReceiver.bat")
+//    bat.text = /java -jar libs\${jar.archiveName}/
+//
+//    File sh = new File("$buildDir/tmp/starters/EsrReceiver.sh")
+//    sh.text = "java -jar libs/${jar.archiveName}"
+//    sh.executable = true
+//
+//    into ("EsrReceiver") {
+//        from "$buildDir/tmp/starters"
+//    }
+//    into ("EsrReceiver/libs")  {
+//        from "$buildDir/libs"
+//    }
+//}
+//
+//zip.dependsOn jar
+//zip.dependsOn createStarters
