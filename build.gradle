@@ -2,6 +2,7 @@ apply plugin: 'java'
 apply plugin: 'application'
 apply plugin: 'launch4j'
 
+archivesBaseName = "esr-receiver-http"
 mainClassName = "ch.luklanis.esreceiver.AppFrame"
 
 sourceCompatibility = 1.7
@@ -14,6 +15,7 @@ launch4j {
 
     mainClassName = project.mainClassName
     jar = "lib/${project.archivesBaseName}-${project.version}.jar"
+    outfile = "${project.archivesBaseName}.exe"
 }
 
 
@@ -86,9 +88,13 @@ task wrapper(type: Wrapper) {
 
 task zipExe(type: Zip) {
     into("EsrReceiver") {
-        from "$buildDir/launch4j"
+        from "$buildDir/launch4j/${launch4j.outfile}"
+    }
+
+    into("EsrReceiver/lib") {
+        from "$buildDir/launch4j/lib"
     }
 }
 
-zip.dependsOn createExe
+zipExe.dependsOn createExe
 //zip.dependsOn createStarters
