@@ -233,28 +233,4 @@ public class HttpReceive {
 
         return hexString.toString();
     }
-
-//    public String decrypt(byte[] message, byte[] iv)
-//    {
-//        try
-//        {
-//            /* Derive the key, given password and salt. */
-//            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
-//            KeySpec spec = new PBEKeySpec(password.toCharArray(), emailAddress.getBytes("UTF-8"), 65536, 256);
-//            SecretKey tmp = factory.generateSecret(spec);
-//            SecretKey secret = new SecretKeySpec(tmp.getEncoded(), "AES");
-//
-//            /* Decrypt the message, given derived key and initialization vector. */
-//            Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
-//            cipher.init(Cipher.DECRYPT_MODE, secret, new IvParameterSpec(iv));
-//            final String decryptedString = new String(cipher.doFinal(message), "UTF-8");
-//            return decryptedString;
-//        }
-//        catch (Exception e)
-//        {
-//			System.out.print("Error while decrypting" + e);
-//
-//        }
-//        return null;
-//    }
 }

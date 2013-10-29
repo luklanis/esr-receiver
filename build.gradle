@@ -1,12 +1,28 @@
 apply plugin: 'java'
 apply plugin: 'application'
-
-archivesBaseName = 'EsrReceiver_http'
+apply plugin: 'launch4j'
 
 mainClassName = "ch.luklanis.esreceiver.AppFrame"
 
 sourceCompatibility = 1.7
-version = '0.2'
+version = '0.3'
+
+launch4j {
+    launch4jCmd = '/home/lukas/apps/launch4j/launch4j'
+    mainClassName = project.mainClassName
+    jar = "lib/${project.archivesBaseName}-${project.version}.jar"
+}
+
+
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'edu.sc.seis.gradle:launch4j:1.0.6'
+    }
+}
 
 repositories {
     mavenCentral()
