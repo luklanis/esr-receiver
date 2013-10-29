@@ -1,6 +1,5 @@
 .gradle
 .settings
-settings.gradle
 *.properties
 bin
 doc

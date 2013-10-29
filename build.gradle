@@ -8,7 +8,10 @@ sourceCompatibility = 1.7
 version = '0.3'
 
 launch4j {
-    launch4jCmd = '/home/lukas/apps/launch4j/launch4j'
+    if (project.hasProperty('launch4jCmd')) {
+        launch4jCmd = project.launch4jCmd
+    }
+
     mainClassName = project.mainClassName
     jar = "lib/${project.archivesBaseName}-${project.version}.jar"
 }
