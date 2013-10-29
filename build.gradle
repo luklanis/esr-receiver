@@ -17,6 +17,8 @@ repositories {
 }
 
 dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.+'
+
     compile 'com.mashape.unirest:unirest-java:1.2.5'
     compile 'org.apache.httpcomponents:httpclient:4.3'
     compile 'org.apache.httpcomponents:httpasyncclient:4.0-beta4'
@@ -33,6 +35,14 @@ jar {
                 'Main-Class': 'ch.luklanis.esreceiver.AppFrame',
                 'Class-Path': '.'
     }
+}
+
+task unitTests(type: Test) {
+    include 'ch/luklanis/esreceiver/unit/**/*'
+}
+
+task integrationTests(type: Test) {
+    include 'ch/luklanis/esreceiver/integration/**/*'
 }
 
 task wrapper(type: Wrapper) {

@@ -26,12 +26,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class HttpReceive {
 
     public static final String PROVIDER = "BC";
-    public static final int PBE_ITERATION_COUNT = 5000;
+    public static final int PBE_ITERATION_COUNT = 1000;
 
     private static final String HASH_ALGORITHM = "SHA-512";
-    private static final String PBE_ALGORITHM = "PBEWithSHA256And256BitAES-CBC-BC";
-    private static final String CIPHER_ALGORITHM = "AES/CBC/PKCS5Padding";
-    private static final String SECRET_KEY_ALGORITHM = "AES";
+    //    private static final String PBE_ALGORITHM = "PBEWithSHA256And256BitAES-CBC-BC";       // AES
+    private static final String PBE_ALGORITHM = "PBEWithSHAAnd3-KeyTripleDES-CBC";
+    //    private static final String CIPHER_ALGORITHM = "AES/CBC/PKCS5Padding";       // AES
+    private static final String CIPHER_ALGORITHM = "DESede/CBC/PKCS5Padding";
+    //    private static final String SECRET_KEY_ALGORITHM = "AES";       // AES
+    private static final String SECRET_KEY_ALGORITHM = "DESede";
+
+    //    private static final int KEY_LENGTH = 256;       // AES
+    private static final int KEY_LENGTH = 192;
 
     // Declaration section
     // clientClient: the client socket
@@ -93,6 +99,7 @@ public class HttpReceive {
     };
 
     public HttpReceive() {
+        // AES
         Security.addProvider(new org.bouncycastle.jce.provider
                 .BouncyCastleProvider());
     }
@@ -111,21 +118,29 @@ public class HttpReceive {
         changeConnectionState(ConnectionState.Disconnected);
     }
 
-    public void connect(String emailAddress, String password) {
-        this.password = password;
+    public void init(String emailAddress, String password) throws Exception {
         this.emailAddress = emailAddress;
+        this.password = password;
 
+        this.url = String.format("http://esr-relay.herokuapp.com/%s/%s", emailAddress, getHash(password, emailAddress));
+    }
+
+    public void connect() {
+        changeConnectionState(ConnectionState.Waiting);
+
+        future = Unirest.get(url)
+                .asJsonAsync(unirestCallback);
+    }
+
+    public void connect(String emailAddress, String password) {
         try {
-            this.url = String.format("http://esr-relay.herokuapp.com/%s/%s", emailAddress, getHash(password, emailAddress));
+            init(emailAddress, password);
         } catch (Exception e) {
             e.printStackTrace();
             changeConnectionState(ConnectionState.AuthenticationError);
         }
 
-        changeConnectionState(ConnectionState.Waiting);
-
-        future = Unirest.get(url)
-                .asJsonAsync(unirestCallback);
+        connect();
     }
 
     protected void changeConnectionState(ConnectionState state) {
@@ -150,7 +165,7 @@ public class HttpReceive {
 
     public String getHash(String password, String salt) throws NoSuchProviderException, NoSuchAlgorithmException, UnsupportedEncodingException {
         String input = password + salt;
-        MessageDigest md = MessageDigest.getInstance(HASH_ALGORITHM, PROVIDER);
+        MessageDigest md = MessageDigest.getInstance(HASH_ALGORITHM);
         byte[] out = md.digest(input.getBytes("UTF-8"));
         return Base64.encodeBase64URLSafeString(out);
     }
@@ -188,20 +203,20 @@ public class HttpReceive {
         byte[] decodedMsg = Base64.decodeBase64(encrypted);
         byte[] decodedIv = Base64.decodeBase64(iv);
 
-        Cipher decryptionCipher = Cipher.getInstance(CIPHER_ALGORITHM, PROVIDER);
+        Cipher decryptionCipher = Cipher.getInstance(CIPHER_ALGORITHM);
         IvParameterSpec ivSpec = new IvParameterSpec(decodedIv);
-        decryptionCipher.init(Cipher.DECRYPT_MODE, getSecretKey(password, emailAddress), ivSpec);
+        decryptionCipher.init(Cipher.DECRYPT_MODE, getSecretKey(), ivSpec);
         byte[] decryptedText = decryptionCipher.doFinal(decodedMsg);
         return new String(decryptedText, "UTF-8");
     }
 
-    public SecretKey getSecretKey(String password, String salt)
+    public SecretKey getSecretKey()
             throws NoSuchProviderException,
             NoSuchAlgorithmException,
             InvalidKeySpecException,
             UnsupportedEncodingException {
         char[] pw = toHexString(password.getBytes("UTF-8")).toCharArray();
-        PBEKeySpec pbeKeySpec = new PBEKeySpec(pw, salt.getBytes("UTF-8"), PBE_ITERATION_COUNT, 256);
+        PBEKeySpec pbeKeySpec = new PBEKeySpec(pw, emailAddress.getBytes("UTF-8"), PBE_ITERATION_COUNT, KEY_LENGTH);
         SecretKeyFactory factory = SecretKeyFactory.getInstance(PBE_ALGORITHM, PROVIDER);
         SecretKey tmp = factory.generateSecret(pbeKeySpec);
         return new SecretKeySpec(tmp.getEncoded(), SECRET_KEY_ALGORITHM);
