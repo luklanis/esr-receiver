@@ -84,24 +84,11 @@ task wrapper(type: Wrapper) {
 //    sh.text = "java -jar libs/${jar.archiveName}"
 //}
 
-//task zip(type: Zip) {
-//    File dirs = new File("$buildDir/tmp/starters")
-//    dirs.mkdirs()
-//
-//    File bat = new File("$buildDir/tmp/starters/EsrReceiver.bat")
-//    bat.text = /java -jar libs\${jar.archiveName}/
-//
-//    File sh = new File("$buildDir/tmp/starters/EsrReceiver.sh")
-//    sh.text = "java -jar libs/${jar.archiveName}"
-//    sh.executable = true
-//
-//    into ("EsrReceiver") {
-//        from "$buildDir/tmp/starters"
-//    }
-//    into ("EsrReceiver/libs")  {
-//        from "$buildDir/libs"
-//    }
-//}
-//
-//zip.dependsOn jar
+task zipExe(type: Zip) {
+    into("EsrReceiver") {
+        from "$buildDir/launch4j"
+    }
+}
+
+zip.dependsOn createExe
 //zip.dependsOn createStarters
