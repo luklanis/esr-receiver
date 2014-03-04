@@ -1,22 +1,13 @@
 apply plugin: 'java'
 apply plugin: 'application'
 apply plugin: 'launch4j'
+apply plugin: 'macAppBundle'
 
 archivesBaseName = "esr-receiver-http"
 mainClassName = "ch.luklanis.esreceiver.AppFrame"
 
-sourceCompatibility = 1.7
+sourceCompatibility = 1.6
 version = '0.3'
-
-launch4j {
-    if (project.hasProperty('launch4jCmd')) {
-        launch4jCmd = project.launch4jCmd
-    }
-
-    mainClassName = project.mainClassName
-    jar = "lib/${project.archivesBaseName}-${project.version}.jar"
-    outfile = "${project.archivesBaseName}.exe"
-}
 
 
 buildscript {
@@ -26,7 +17,26 @@ buildscript {
 
     dependencies {
         classpath 'edu.sc.seis.gradle:launch4j:1.0.6'
+      classpath 'edu.sc.seis.gradle:macappbundle:2.0.0'
     }
+}
+
+macAppBundle {
+  mainClassName = "ch.luklanis.esreceiver.AppFrame"
+  //icon = "myIcon.icns"
+  //bundleJRE = true
+  //javaProperties.put("apple.laf.useScreenMenuBar", "true")
+  //backgroundImage = "doc/macbackground.png"
+}
+
+launch4j {
+  if (project.hasProperty('launch4jCmd')) {
+    launch4jCmd = project.launch4jCmd
+  }
+
+  mainClassName = project.mainClassName
+  jar = "lib/${project.archivesBaseName}-${project.version}.jar"
+  outfile = "${project.archivesBaseName}.exe"
 }
 
 repositories {
