@@ -2,6 +2,7 @@ apply plugin: 'java'
 apply plugin: 'application'
 apply plugin: 'launch4j'
 apply plugin: 'macAppBundle'
+apply plugin: 'gradle-one-jar'
 
 archivesBaseName = "esr-receiver-http"
 mainClassName = "ch.luklanis.esreceiver.AppFrame"
@@ -11,23 +12,39 @@ version = '0.3'
 
 
 buildscript {
-    repositories {
-        mavenCentral()
-    }
+  repositories {
+    mavenCentral()
+  }
 
-    dependencies {
-        classpath 'edu.sc.seis.gradle:launch4j:1.0.6'
-      classpath 'edu.sc.seis.gradle:macappbundle:2.0.0'
-    }
+  dependencies {
+    classpath 'edu.sc.seis.gradle:launch4j:1.0.6'
+    classpath 'edu.sc.seis.gradle:macappbundle:2.0.0'
+    classpath 'com.github.rholder:gradle-one-jar:1.0.4'
+  }
 }
 
 macAppBundle {
-  mainClassName = "ch.luklanis.esreceiver.AppFrame"
+  dmgName = "${project.archivesBaseName}-macOS-up-to-106.zip"
+  mainClassName = 'ch.luklanis.esreceiver.AppFrame'
+  appStyle = 'Apple'
   //icon = "myIcon.icns"
   //bundleJRE = true
   //javaProperties.put("apple.laf.useScreenMenuBar", "true")
   //backgroundImage = "doc/macbackground.png"
 }
+
+createDmg.enabled = false
+
+//macAppBundleFrom107 {
+//  name "${project.archivesBaseName}-macOS-107-and-newer.zip"
+//  mainClassName = 'ch.luklanis.esreceiver.AppFrame'
+//  appStyle = 'Oracle'
+//  //icon = "myIcon.icns"
+//  //bundleJRE = true
+//  //javaProperties.put("apple.laf.useScreenMenuBar", "true")
+//  //backgroundImage = "doc/macbackground.png"
+//}
+
 
 launch4j {
   if (project.hasProperty('launch4jCmd')) {
@@ -40,71 +57,77 @@ launch4j {
 }
 
 repositories {
-    mavenCentral()
+  mavenCentral()
 
-    maven {
-        url "http://maven.mashape.com/releases"
-    }
+  maven {
+    url "http://maven.mashape.com/releases"
+  }
 }
 
 dependencies {
-    testCompile group: 'junit', name: 'junit', version: '4.+'
+  testCompile 'junit:junit:4.+'
 
-    compile 'com.mashape.unirest:unirest-java:1.2.5'
-    compile 'org.apache.httpcomponents:httpclient:4.3'
-    compile 'org.apache.httpcomponents:httpasyncclient:4.0-beta4'
-    compile 'org.apache.httpcomponents:httpmime:4.3'
-    compile 'org.json:json:20090211'
-    compile 'org.bouncycastle:bcprov-jdk15on:1.49'
+  compile 'com.mashape.unirest:unirest-java:1.2.5'
+  compile 'org.apache.httpcomponents:httpclient:4.3'
+  compile 'org.apache.httpcomponents:httpasyncclient:4.0-beta4'
+  compile 'org.apache.httpcomponents:httpmime:4.3'
+  compile 'org.json:json:20090211'
+  compile 'org.bouncycastle:bcprov-jdk15on:1.49'
 }
 
 jar {
     //from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
     manifest {
         attributes 'Implementation-Title': 'ESR Receiver',
-                'Implementation-Version': version,
-                'Main-Class': 'ch.luklanis.esreceiver.AppFrame',
-                'Class-Path': '.'
+            'Implementation-Version': version
     }
 }
 
 task unitTests(type: Test) {
-    include 'ch/luklanis/esreceiver/unit/**/*'
+  include 'ch/luklanis/esreceiver/unit/**/*'
 }
 
 task integrationTests(type: Test) {
-    include 'ch/luklanis/esreceiver/integration/**/*'
+  include 'ch/luklanis/esreceiver/integration/**/*'
 }
 
 task wrapper(type: Wrapper) {
-    gradleVersion = '1.8'
+  gradleVersion = '1.8'
 }
 
-//task copyDependencies (type: Sync) {
-//    //into "$buildDir/output/lib"
-//    into "$buildDir/libs"
-//    from configurations.runtime
-//}
-//
-//jar.dependsOn copyDependencies
-
-//task createStarters << {
-//    File bat = new File("$buildDir/tmp/EsrReceiver.bat")
-//    bat.text = /java -jar libs\${jar.archiveName}/
-//
-//    File sh = new File("$buildDir/tmp/EsrReceiver.sh")
-//    sh.text = "java -jar libs/${jar.archiveName}"
-//}
-
 task zipExe(type: Zip) {
-    into("EsrReceiver") {
-        from "$buildDir/launch4j/${launch4j.outfile}"
-    }
+  archiveName = "${project.archivesBaseName}-win.zip"
 
-    into("EsrReceiver/lib") {
-        from "$buildDir/launch4j/lib"
-    }
+  into("EsrReceiver") {
+    from "$buildDir/launch4j/${launch4j.outfile}"
+  }
+
+  into("EsrReceiver/lib") {
+    from "$buildDir/launch4j/lib"
+  }
 }
 
 zipExe.dependsOn createExe
-//zip.dependsOn createStarters
+
+task oneJar(type: OneJar) {
+  mainClass = 'ch.luklanis.esreceiver.AppFrame'
+  manifest {
+    attributes 'Class-Path': './expand'
+    attributes 'One-Jar-Expand': 'ESRReceiver.properties,lib/'
+    attributes 'One-Jar-Expand-Dir': './expand'
+    //attributes 'One-Jar-Confirm-Expand': 'false'
+    //attributes 'One-Jar-Show-Expand': 'true'
+  }
+}
+
+task zipOneJar(type: Zip) {
+  dependsOn oneJar
+
+  archiveName = "${project.archivesBaseName}-all.zip"
+
+  from "$buildDir/libs/${oneJar.archiveName}"
+}
+
+task buildDists {
+  dependsOn build, zipExe, createAppZip, zipOneJar
+}
