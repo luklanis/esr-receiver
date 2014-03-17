@@ -24,7 +24,7 @@ buildscript {
 }
 
 macAppBundle {
-  dmgName = "${project.archivesBaseName}-macOS-up-to-106.zip"
+  dmgName = "${project.archivesBaseName}-macOS-up-to-106"
   mainClassName = 'ch.luklanis.esreceiver.AppFrame'
   appStyle = 'Apple'
   //icon = "myIcon.icns"
