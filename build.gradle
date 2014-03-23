@@ -2,7 +2,7 @@ apply plugin: 'java'
 apply plugin: 'application'
 apply plugin: 'launch4j'
 apply plugin: 'macAppBundle'
-apply plugin: 'gradle-one-jar'
+apply plugin: 'application'
 
 archivesBaseName = "esr-receiver-http"
 mainClassName = "ch.luklanis.esreceiver.AppFrame"
@@ -79,7 +79,8 @@ jar {
     //from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
     manifest {
         attributes 'Implementation-Title': 'ESR Receiver',
-            'Implementation-Version': version
+            'Implementation-Version': version,
+            'Class-Path': './expand/lib'
     }
 }
 
@@ -109,25 +110,8 @@ task zipExe(type: Zip) {
 
 zipExe.dependsOn createExe
 
-task oneJar(type: OneJar) {
-  mainClass = 'ch.luklanis.esreceiver.AppFrame'
-  manifest {
-    attributes 'Class-Path': './expand'
-    attributes 'One-Jar-Expand': 'ESRReceiver.properties,lib/'
-    attributes 'One-Jar-Expand-Dir': './expand'
-    //attributes 'One-Jar-Confirm-Expand': 'false'
-    //attributes 'One-Jar-Show-Expand': 'true'
-  }
-}
-
-task zipOneJar(type: Zip) {
-  dependsOn oneJar
-
-  archiveName = "${project.archivesBaseName}-all.zip"
-
-  from "$buildDir/libs/${oneJar.archiveName}"
-}
+distZip.archiveName = "${project.archivesBaseName}-linux.zip"
 
 task buildDists {
-  dependsOn build, zipExe, createAppZip, zipOneJar
+  dependsOn build, zipExe, createAppZip, distZip
 }
